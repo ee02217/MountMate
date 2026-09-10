@@ -37,8 +37,8 @@ struct DiagnosticsPane: View {
 
             Text("Recent activity").font(.headline)
             List(Array(entries.enumerated()), id: \.offset) { _, entry in
-                Text(entry.formatted())
-                    .font(.system(.caption, design: .monospaced))
+                ActivityRow(entry: entry)
+                    .listRowSeparator(.hidden)
             }
             .contentMargins(.bottom, 76, for: .scrollContent)
 
@@ -88,6 +88,58 @@ struct DiagnosticsPane: View {
         resetCopied = Task {
             try? await Task.sleep(for: .seconds(2))
             copied = false
+        }
+    }
+}
+
+/// One activity row, resolved to what should be drawn.
+///
+/// The symbol is chosen from the entry's category and, for mount entries, from the
+/// message. Reading the message is stringly-typed and therefore fragile — if it ever
+/// disagrees with reality, the honest fix is a state field on `ActivityEntry` rather
+/// than more string matching here.
+struct ActivityRow: View {
+    let entry: ActivityEntry
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: symbol)
+                .foregroundStyle(tint)
+                .frame(width: 14)
+            Text(entry.timestamp, format: .dateTime.hour().minute().second())
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary)
+            Text(message)
+                .font(.caption)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 1)
+    }
+
+    private var message: String {
+        if let share = entry.share { return "\(share): \(entry.message)" }
+        return entry.message
+    }
+
+    private var symbol: String {
+        switch entry.category {
+        case .lifecycle: return "power"
+        case .user: return "hand.tap"
+        case .mount:
+            if entry.message.hasPrefix("failed") { return "exclamationmark.circle.fill" }
+            if entry.message.hasPrefix("mounted") { return "checkmark.circle.fill" }
+            return "circle"
+        }
+    }
+
+    private var tint: Color {
+        switch entry.category {
+        case .lifecycle, .user: return .secondary
+        case .mount:
+            if entry.message.hasPrefix("failed") { return .red }
+            if entry.message.hasPrefix("mounted") { return .green }
+            return .secondary
         }
     }
 }

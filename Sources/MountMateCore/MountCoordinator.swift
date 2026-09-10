@@ -18,6 +18,11 @@ public actor MountCoordinator {
     /// The task consuming every source. `nil` until `start()`.
     private var consumption: Task<Void, Never>?
 
+    /// Continuation for `statuses`. Created once in `init` so a snapshot emitted
+    /// before anyone iterates is buffered rather than dropped.
+    private let statusContinuation: AsyncStream<[EndpointStatus]>.Continuation
+    private let statusStream: AsyncStream<[EndpointStatus]>
+
     public init(
         engine: MountEngine,
         endpointsProvider: @escaping @Sendable () async -> [ShareEndpoint],
@@ -28,6 +33,31 @@ public actor MountCoordinator {
         self.endpointsProvider = endpointsProvider
         self.sources = sources
         self.scheduler = scheduler
+
+        var captured: AsyncStream<[EndpointStatus]>.Continuation!
+        statusStream = AsyncStream { captured = $0 }
+        statusContinuation = captured
+    }
+
+    /// Snapshots of every endpoint, emitted after each attempt.
+    ///
+    /// The coordinator is the only component that knows when state changed, so the
+    /// UI observes this rather than polling the engine on a timer of its own.
+    public var statuses: AsyncStream<[EndpointStatus]> { statusStream }
+
+    private func publishSnapshot() async {
+        var snapshot: [EndpointStatus] = []
+        for endpoint in await endpointsProvider() {
+            snapshot.append(
+                EndpointStatus(
+                    id: endpoint.id,
+                    displayName: endpoint.displayName,
+                    state: await engine.state(for: endpoint.id),
+                    enabled: endpoint.enabled
+                )
+            )
+        }
+        statusContinuation.yield(snapshot)
     }
 
     /// Acts on one trigger.
@@ -83,12 +113,14 @@ public actor MountCoordinator {
         consumption = nil
         for task in retryTasks.values { task.cancel() }
         retryTasks.removeAll()
+        statusContinuation.finish()
     }
 
     /// One pass over a single endpoint, plus whatever retry that pass earned.
     private func visit(_ endpoint: ShareEndpoint) async {
         await engine.ensureMounted(endpoint)
         await scheduleRetry(for: endpoint)
+        await publishSnapshot()
     }
 
     private func scheduleRetry(for endpoint: ShareEndpoint) async {

@@ -248,3 +248,68 @@ private func pollUntil(
     try await Task.sleep(for: .milliseconds(50))
     #expect(await service.mountCalls.count == 1)
 }
+
+@Test func everyAttemptPublishesASnapshot() async throws {
+    let service = FakeMountService()
+    let inspector = FakeMountInspector()
+    let engine = makeEngine(service: service, inspector: inspector)
+    let endpoint = try makeEndpoint()
+
+    let coordinator = MountCoordinator(
+        engine: engine,
+        endpointsProvider: { [endpoint] },
+        sources: [],
+        scheduler: FakeScheduler(limit: 0)
+    )
+
+    let statuses = await coordinator.statuses
+    let collector = Task { () -> [EndpointStatus]? in
+        for await snapshot in statuses { return snapshot }
+        return nil
+    }
+
+    await coordinator.handle(.backstop)
+
+    let snapshot = try #require(await collector.value)
+    #expect(snapshot.count == 1)
+    #expect(snapshot.first?.displayName == "Multimedia")
+    #expect(snapshot.first?.state == .mounted(path: "/Volumes/Fake"))
+    #expect(snapshot.first?.enabled == true)
+
+    await coordinator.stop()
+}
+
+@Test func aDisabledEndpointAppearsInTheSnapshotAsDisabled() async throws {
+    let service = FakeMountService()
+    let inspector = FakeMountInspector()
+    let engine = makeEngine(service: service, inspector: inspector)
+    // Bound to a `let` after mutating: a `var` cannot be captured by the @Sendable
+    // endpointsProvider closure.
+    var mutable = try makeEndpoint()
+    mutable.enabled = false
+    let endpoint = mutable
+
+    let coordinator = MountCoordinator(
+        engine: engine,
+        endpointsProvider: { [endpoint] },
+        sources: [],
+        scheduler: FakeScheduler(limit: 0)
+    )
+
+    let statuses = await coordinator.statuses
+    let collector = Task { () -> [EndpointStatus]? in
+        for await snapshot in statuses { return snapshot }
+        return nil
+    }
+
+    await coordinator.handle(.backstop)
+
+    let snapshot = try #require(await collector.value)
+    // It must still be listed — a disabled share the user cannot see is a share they
+    // cannot re-enable.
+    #expect(snapshot.first?.enabled == false)
+    #expect(snapshot.first?.state == .idle)
+    #expect(await service.mountCalls.isEmpty)
+
+    await coordinator.stop()
+}

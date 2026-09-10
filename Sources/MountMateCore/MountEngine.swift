@@ -119,6 +119,33 @@ public actor MountEngine {
         }
     }
 
+    /// Detaches the endpoint at the user's request.
+    ///
+    /// Not forced: a force-unmount is for a wedged mount the engine found on its own,
+    /// where the alternative is lying about `.mounted`. Here a person asked, so a
+    /// refusal ("file in use") is information they should get rather than something
+    /// to override on their behalf.
+    ///
+    /// The state becomes `.idle`, not `.failed`: nothing failed. The caller is
+    /// expected to disable the endpoint as well — otherwise the next sweep simply
+    /// mounts it again (spec §8).
+    public func unmount(_ endpoint: ShareEndpoint) async throws {
+        guard let existing = await existingMount(for: endpoint) else {
+            // Already detached. The desired end state, so not an error.
+            states[endpoint.id] = .idle
+            return
+        }
+
+        let service = self.service
+        let path = existing.on
+        try await withTimeout(unmountDeadline) {
+            try await service.unmount(path: path, force: false)
+        }
+
+        states[endpoint.id] = .idle
+        attempts[endpoint.id] = 0
+    }
+
     private func attempt(_ endpoint: ShareEndpoint) async {
         if let existing = await existingMount(for: endpoint) {
             if await inspector.isResponsive(path: existing.on) {

@@ -21,16 +21,20 @@ struct MenuView: View {
                         model.toggle(row.id)
                     }
                 } label: {
-                    Label {
-                        Text(row.title)
-                        if let subtitle = row.subtitle {
-                            Text(subtitle)
-                        }
-                    } icon: {
-                        let status = status(row.dot)
-                        Image(systemName: status.symbol)
-                            .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(status.tint)
+                    // NSMenu draws a two-line title/subtitle row only when the
+                    // Button's label carries two `Text` views directly — wrapping
+                    // them in `Label { Text; Text } icon: { Image }` nests them one
+                    // level deeper (inside Label's own composition) and NSMenu no
+                    // longer finds them, collapsing the row back to one line. Keep
+                    // the icon and both `Text`s as flat siblings instead.
+                    let status = status(row.dot)
+                    Image(systemName: status.symbol)
+                        .renderingMode(.original)
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(status.tint)
+                    Text(row.title)
+                    if let subtitle = row.subtitle {
+                        Text(subtitle)
                     }
                 }
             }

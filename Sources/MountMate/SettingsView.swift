@@ -33,13 +33,16 @@ struct SharesPane: View {
     var body: some View {
         HSplitView {
             VStack(spacing: 0) {
+                // .listStyle(.sidebar) made the List render zero rows once it lived
+                // directly in an HSplitView pane (not a NavigationSplitView column) —
+                // the "Multimedia" share stopped drawing even though `drafts` loaded
+                // fine. Visible rows beat sidebar vibrancy, so the style is dropped.
                 List(selection: $selection) {
                     ForEach(drafts) { draft in
                         Text(draft.displayName.isEmpty ? "Untitled" : draft.displayName)
                             .tag(draft.id)
                     }
                 }
-                .listStyle(.sidebar)
                 HStack(spacing: 2) {
                     Button {
                         drafts.append(ShareDraft())
@@ -64,6 +67,13 @@ struct SharesPane: View {
                 .padding(.horizontal, 6)
                 .padding(.vertical, 4)
                 .overlay(alignment: .top) { Divider() }
+                // The save bar's .safeAreaInset(edge: .bottom) is attached to the
+                // whole HSplitView, so it insets both panes — but a plain HStack
+                // doesn't consume safe area the way List/Form do, so it was just
+                // painted over by the glass bar. safeAreaPadding(.bottom) pulls the
+                // current ambient bottom inset in as real padding so this bar clears
+                // it, whatever the glass bar's height happens to be.
+                .safeAreaPadding(.bottom)
             }
             .frame(minWidth: 160)
 

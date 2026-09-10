@@ -177,3 +177,53 @@ private func makeTempDirectory() throws -> URL {
     // And the original path is now clear, so the app can write a fresh config.
     #expect(!FileManager.default.fileExists(atPath: store.fileURL.path))
 }
+
+@Test func savedEndpointsLoadBackIdentically() async throws {
+    let directory = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = JSONEndpointStore(directory: directory)
+
+    let first = try makeStoreEndpoint(name: "Multimedia")
+    let second = try makeStoreEndpoint(name: "Backup")
+    try await store.save([first, second])
+
+    let load = try await store.load()
+    #expect(load.endpoints == [first, second])
+    #expect(load.skipped.isEmpty)
+}
+
+@Test func savingNeverLeavesTheFilePartiallyWritten() async throws {
+    let directory = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = JSONEndpointStore(directory: directory)
+
+    try await store.save([try makeStoreEndpoint(name: "Multimedia")])
+    let firstSize = try Data(contentsOf: store.fileURL).count
+
+    // A second, larger save must replace the file wholesale, never append or truncate
+    // in place — the file is always either the old config or the new one.
+    try await store.save([
+        try makeStoreEndpoint(name: "Multimedia"),
+        try makeStoreEndpoint(name: "Backup"),
+        try makeStoreEndpoint(name: "Archive"),
+    ])
+    let load = try await store.load()
+
+    #expect(load.endpoints.count == 3)
+    #expect(load.skipped.isEmpty)
+    #expect(try Data(contentsOf: store.fileURL).count > firstSize)
+}
+
+@Test func noPasswordFieldIsEverWritten() async throws {
+    let directory = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = JSONEndpointStore(directory: directory)
+
+    try await store.save([try makeStoreEndpoint()])
+    let written = try String(contentsOf: store.fileURL, encoding: .utf8).lowercased()
+
+    // Spec §5.5 and §5.6: the file must not be able to carry a secret.
+    #expect(!written.contains("password"))
+    #expect(!written.contains("passwd"))
+    #expect(!written.contains("secret"))
+}

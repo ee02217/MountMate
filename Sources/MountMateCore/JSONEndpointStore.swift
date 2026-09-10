@@ -92,6 +92,9 @@ public struct JSONEndpointStore: EndpointStore {
         try FileManager.default.createDirectory(
             at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true
         )
-        try data.write(to: fileURL)
+        // `.atomic` writes a temp file and renames it into place. Without it a crash
+        // or a full disk mid-write leaves a truncated file — which the next load
+        // would quarantine, turning a transient failure into a lost configuration.
+        try data.write(to: fileURL, options: .atomic)
     }
 }

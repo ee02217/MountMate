@@ -189,7 +189,7 @@ private func pollUntil(
 
     // Mounted means attempt count 0, so `retryDelay` is nil and nothing is scheduled.
     #expect(await scheduler.requested.isEmpty)
-    #expect(await engine.state(for: endpoint.id) == .mounted(path: "/Volumes/Fake"))
+    #expect(await engine.state(for: endpoint.id) == .mounted(path: "/Volumes/Multimedia"))
 
     await coordinator.stop()
 }
@@ -214,9 +214,9 @@ private func pollUntil(
 
     // Already mounted and responsive, so a later event re-probes instead of remounting.
     await inspector.setVolumes([
-        MountedVolume(from: endpoint.mountFromIdentifier, on: "/Volumes/Fake")
+        MountedVolume(from: endpoint.mountFromIdentifier, on: "/Volumes/Multimedia")
     ])
-    await inspector.setResponsive(["/Volumes/Fake"])
+    await inspector.setResponsive(["/Volumes/Multimedia"])
     source.yield(.backstop)
 
     try await pollUntil { await inspector.responsiveChecks >= 1 }
@@ -273,7 +273,7 @@ private func pollUntil(
     let snapshot = try #require(await collector.value)
     #expect(snapshot.count == 1)
     #expect(snapshot.first?.displayName == "Multimedia")
-    #expect(snapshot.first?.state == .mounted(path: "/Volumes/Fake"))
+    #expect(snapshot.first?.state == .mounted(path: "/Volumes/Multimedia"))
     #expect(snapshot.first?.enabled == true)
 
     await coordinator.stop()
@@ -336,9 +336,9 @@ private func pollUntil(
 
     // Already mounted and unchanged: the second sweep must add nothing.
     await inspector.setVolumes([
-        MountedVolume(from: endpoint.mountFromIdentifier, on: "/Volumes/Fake")
+        MountedVolume(from: endpoint.mountFromIdentifier, on: "/Volumes/Multimedia")
     ])
-    await inspector.setResponsive(["/Volumes/Fake"])
+    await inspector.setResponsive(["/Volumes/Multimedia"])
     await coordinator.handle(.backstop)
 
     let secondEntries = await log.entries
@@ -397,7 +397,7 @@ private func pollUntil(
     #expect(afterSecond.count == 1)
     #expect(afterSecond[0].kind == .failure)
 
-    await service.setMountResult(.success("/Volumes/Fake"))
+    await service.setMountResult(.success("/Volumes/Multimedia"))
     await coordinator.handle(.backstop)
 
     let afterRecovery = await recorder.posted

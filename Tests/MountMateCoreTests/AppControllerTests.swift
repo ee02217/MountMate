@@ -7,9 +7,9 @@ import Foundation
     let inspector = FakeMountInspector()
     let endpoint = try makeStoreEndpoint()
     await inspector.setVolumes([
-        MountedVolume(from: endpoint.mountFromIdentifier, on: "/Volumes/Fake")
+        MountedVolume(from: endpoint.mountFromIdentifier, on: "/Volumes/Multimedia")
     ])
-    await inspector.setResponsive(["/Volumes/Fake"])
+    await inspector.setResponsive(["/Volumes/Multimedia"])
 
     let engine = MountEngine(
         service: service,
@@ -17,13 +17,13 @@ import Foundation
         passwordProvider: { _ in "hunter2" }
     )
     await engine.ensureMounted(endpoint)
-    #expect(await engine.state(for: endpoint.id) == .mounted(path: "/Volumes/Fake"))
+    #expect(await engine.state(for: endpoint.id) == .mounted(path: "/Volumes/Multimedia"))
 
     try await engine.unmount(endpoint)
 
     // A non-forced unmount: the user asked, so there is no wedged mount to force.
     let calls = await service.unmountCalls
-    #expect(calls == [FakeMountService.UnmountCall(path: "/Volumes/Fake", force: false)])
+    #expect(calls == [FakeMountService.UnmountCall(path: "/Volumes/Multimedia", force: false)])
     #expect(await engine.state(for: endpoint.id) == .idle)
 }
 

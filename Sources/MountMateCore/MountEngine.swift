@@ -197,6 +197,22 @@ public actor MountEngine {
             let path = try await withTimeout(mountDeadline) {
                 try await service.mount(endpoint: endpoint, password: password)
             }
+            // NetFS returns whatever mountpoint it chose. When the expected one is
+            // occupied it silently picks `<name>-1`, and accepting that would leave
+            // everything configured against the expected path broken while this
+            // engine reported success (spec §9.1).
+            guard ExpectedMountpoint.matches(path, for: endpoint) else {
+                // `try?`: if detaching the stray mount also fails there is nothing
+                // further to do here, and reporting the *original* problem — the
+                // occupied mountpoint — is more useful than the cleanup's failure.
+                let service = self.service
+                try? await withTimeout(unmountDeadline) {
+                    try await service.unmount(path: path, force: false)
+                }
+                fail(endpoint, with: MountFailure(reason: .mountpointOccupied))
+                return
+            }
+
             states[endpoint.id] = .mounted(path: path)
             attempts[endpoint.id] = 0
         } catch let failure as MountFailure {

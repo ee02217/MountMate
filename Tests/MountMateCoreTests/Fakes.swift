@@ -19,7 +19,11 @@ actor FakeMountService: MountService {
     private(set) var mountCalls: [MountCall] = []
     private(set) var unmountCalls: [UnmountCall] = []
 
-    var mountResult: Result<String, MountFailure> = .success("/Volumes/Fake")
+    /// Matches `ExpectedMountpoint.path(for:)` for the endpoints these tests build,
+    /// so a successful mount verifies rather than being rejected as misplaced. The
+    /// old default, `/Volumes/Fake`, was a path no real mount of these endpoints
+    /// could produce — it modelled something impossible.
+    var mountResult: Result<String, MountFailure> = .success("/Volumes/Multimedia")
     var mountDelay: Duration = .zero
     var unmountResult: Result<Void, MountFailure> = .success(())
 

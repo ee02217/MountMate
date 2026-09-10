@@ -10,11 +10,11 @@ import Foundation
     let tester = ConnectionTester(service: service, inspector: inspector)
     let result = await tester.test(endpoint, password: "hunter2")
 
-    #expect(result == .succeeded(path: "/Volumes/Fake"))
+    #expect(result == .succeeded(path: "/Volumes/Multimedia"))
     // It created the mount, so it cleans it up: testing an unsaved share must not
     // leave a volume attached to a configuration that does not exist.
     let unmounts = await service.unmountCalls
-    #expect(unmounts == [FakeMountService.UnmountCall(path: "/Volumes/Fake", force: false)])
+    #expect(unmounts == [FakeMountService.UnmountCall(path: "/Volumes/Multimedia", force: false)])
 }
 
 @Test func testingAnAlreadyMountedShareLeavesItAlone() async throws {

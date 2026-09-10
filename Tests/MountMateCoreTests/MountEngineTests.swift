@@ -11,6 +11,53 @@ private func makeEndpoint() throws -> ShareEndpoint {
     )
 }
 
+@Test func aMountAtTheWrongPathIsUndoneAndReported() async throws {
+    let service = FakeMountService()
+    let inspector = FakeMountInspector()
+    let endpoint = try makeEndpoint()
+
+    // NetFS does this when /Volumes/Multimedia is already taken.
+    await service.setMountResult(.success("/Volumes/Multimedia-1"))
+
+    let engine = makeEngine(service: service, inspector: inspector)
+    await engine.ensureMounted(endpoint)
+
+    // Not reported as mounted — everything configured against the expected path
+    // would otherwise be broken while the app claimed success.
+    #expect(await engine.state(for: endpoint.id) == .failed(MountFailure(reason: .mountpointOccupied)))
+
+    // And the stray mount is detached rather than left behind.
+    let unmounts = await service.unmountCalls
+    #expect(unmounts.contains(FakeMountService.UnmountCall(path: "/Volumes/Multimedia-1", force: false)))
+}
+
+@Test func aMountAtTheExpectedPathIsAccepted() async throws {
+    let service = FakeMountService()
+    let inspector = FakeMountInspector()
+    let endpoint = try makeEndpoint()
+    await service.setMountResult(.success("/Volumes/Multimedia"))
+
+    let engine = makeEngine(service: service, inspector: inspector)
+    await engine.ensureMounted(endpoint)
+
+    #expect(await engine.state(for: endpoint.id) == .mounted(path: "/Volumes/Multimedia"))
+    #expect(await service.unmountCalls.isEmpty)
+}
+
+/// An occupied mountpoint counts as a failure for backoff, so it retries later —
+/// whatever is holding the path may go away.
+@Test func anOccupiedMountpointAdvancesBackoff() async throws {
+    let service = FakeMountService()
+    let inspector = FakeMountInspector()
+    let endpoint = try makeEndpoint()
+    await service.setMountResult(.success("/Volumes/Multimedia-1"))
+
+    let engine = makeEngine(service: service, inspector: inspector)
+    await engine.ensureMounted(endpoint)
+
+    #expect(await engine.retryDelay(for: endpoint.id) == .seconds(5))
+}
+
 private func makeEngine(
     service: FakeMountService,
     inspector: FakeMountInspector,

@@ -43,6 +43,17 @@ actor InMemoryEndpointStore: EndpointStore {
     func save(_ endpoints: [ShareEndpoint]) async throws { self.endpoints = endpoints }
 }
 
+/// An activity log with no file behind it.
+actor InMemoryActivityLog: ActivityLog {
+    private(set) var entries: [ActivityEntry] = []
+
+    func append(_ entry: ActivityEntry) async { entries.append(entry) }
+
+    func recent(limit: Int) async -> [ActivityEntry] {
+        Array(entries.reversed().prefix(limit))
+    }
+}
+
 /// A credential store with no Keychain behind it.
 ///
 /// Keyed the way `KeychainQuery` keys real items — scheme, host, username, path —

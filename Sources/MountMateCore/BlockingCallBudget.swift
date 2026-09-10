@@ -38,10 +38,11 @@ public final class BlockingCallBudget: @unchecked Sendable {
     /// `WedgedPathRegistry.shared`.
     public static let shared = BlockingCallBudget()
 
-    /// Three, not one. One stuck call is the common transient case and should not
-    /// disable the endpoint; three concurrent strands against one server is already
-    /// firm evidence that it is wedged rather than slow. Small enough that the
-    /// user's handful of endpoints stays a rounding error against the thread limit.
+    /// One, and the reason is not thread economy. An outstanding call is not stalled:
+    /// NetFS is still working the request and will eventually mount something. A
+    /// second request for the same share therefore races the first for the same
+    /// mountpoint, and the loser lands on `<name>-1`. Allowing "just a few" concurrent
+    /// attempts would allow exactly that collision, so the cap is one.
     private let limit: Int
     private let lock = NSLock()
     private var outstandingByKey: [String: Int] = [:]

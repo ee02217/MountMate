@@ -2,8 +2,8 @@ import Testing
 import Foundation
 @testable import MountMateCore
 
-/// The C call that parks in the kernel, stubbed. Counts entries and blocks until
-/// released — a wedged SMB service cannot be manufactured in a unit test.
+/// A mount call that parks in the kernel until released, counting entries. A wedged
+/// SMB service cannot be manufactured in a unit test.
 private final class HangingMountCall: @unchecked Sendable {
     private let gate = DispatchSemaphore(value: 0)
     private let lock = NSLock()
@@ -27,6 +27,10 @@ private final class HangingMountCall: @unchecked Sendable {
     }
 }
 
+private let noopUnmount: NetFSMountService.BlockingUnmountCall = { _, _ in
+    NetFSMountService.UnmountOutcome(succeeded: true, errorNumber: 0)
+}
+
 private func makeEndpoint(
     name: String = "Multimedia", host: String = "192.168.1.67"
 ) throws -> ShareEndpoint {
@@ -38,18 +42,25 @@ private func makeEndpoint(
     )
 }
 
-@Test func repeatedMountsAgainstAWedgedServerStopStrandingThreads() async throws {
-    // The reported failure: with the NAS's SMB service wedged, every ~45s retry
-    // parked another thread in NetFSMountURLSync — 7 of the app's 16 threads, growing
-    // without bound. `MountEngine.inFlight` cannot prevent it: it releases in `defer`
-    // the moment the deadline fires, which is exactly when the thread is stranded.
+@Test func retryingAWedgedShareNeverStartsASecondLiveMountRequest() async throws {
+    // The reported failure end to end. With the NAS's SMB service wedged, the retry
+    // ladder drove an attempt roughly every 45s and each one parked another thread —
+    // 7 of the app's 16. Those were not idle threads but live mount requests, and
+    // when NetAuthSysAgent was restarted all seven completed and landed on seven
+    // different paths.
+    //
+    // `MountEngine.inFlight` cannot prevent this: it tracks the *awaited* call and
+    // releases in `defer`, which runs the instant the deadline fires — exactly when
+    // the request becomes abandoned-but-live. Its lifetime ends where the leak begins,
+    // and retries are sequential anyway, so it is never consulted.
     let call = HangingMountCall()
     defer { call.release() }
     let service = NetFSMountService(
         mountDeadline: .milliseconds(100),
         unmountDeadline: .milliseconds(100),
-        budget: BlockingCallBudget(limit: 2),
-        mountCall: { call($0, $1, $2) }
+        budget: BlockingCallBudget(limit: 1),
+        mountCall: { call($0, $1, $2) },
+        unmountCall: noopUnmount
     )
     let endpoint = try makeEndpoint()
     let engine = MountEngine(
@@ -64,36 +75,14 @@ private func makeEndpoint(
         await engine.ensureMounted(endpoint)
     }
 
-    #expect(call.entries == 2, "attempt \(call.entries) parked a thread past the budget")
+    #expect(call.entries == 1, "\(call.entries) live mount requests were outstanding at once")
     #expect(
         await engine.state(for: endpoint.id)
             == .failed(MountFailure(reason: .serverNotResponding))
     )
 }
 
-@Test func twoSharesOnOneWedgedServerShareItsThreadBudget() async throws {
-    // The wedge is a property of the server, not the share, so the budget is keyed by
-    // host: a second share on the same dead NAS must not buy a second allowance.
-    let call = HangingMountCall()
-    defer { call.release() }
-    let service = NetFSMountService(
-        mountDeadline: .milliseconds(100),
-        unmountDeadline: .milliseconds(100),
-        budget: BlockingCallBudget(limit: 1),
-        mountCall: { call($0, $1, $2) }
-    )
-
-    await #expect(throws: MountFailure(reason: .timedOut)) {
-        try await service.mount(endpoint: try makeEndpoint(name: "Multimedia"), password: "hunter2")
-    }
-    await #expect(throws: MountFailure(reason: .serverNotResponding)) {
-        try await service.mount(endpoint: try makeEndpoint(name: "Backups"), password: "hunter2")
-    }
-
-    #expect(call.entries == 1)
-}
-
-@Test func aDifferentServerKeepsItsOwnThreadBudget() async throws {
+@Test func aDifferentServerKeepsItsOwnAllowance() async throws {
     // One dead NAS must not stop a healthy one from mounting.
     let call = HangingMountCall()
     defer { call.release() }
@@ -101,13 +90,13 @@ private func makeEndpoint(
         mountDeadline: .milliseconds(100),
         unmountDeadline: .milliseconds(100),
         budget: BlockingCallBudget(limit: 1),
-        mountCall: { call($0, $1, $2) }
+        mountCall: { call($0, $1, $2) },
+        unmountCall: noopUnmount
     )
 
     await #expect(throws: MountFailure(reason: .timedOut)) {
         try await service.mount(endpoint: try makeEndpoint(host: "192.168.1.67"), password: "hunter2")
     }
-    // The other server gets a thread of its own rather than inheriting the refusal.
     await #expect(throws: MountFailure(reason: .timedOut)) {
         try await service.mount(endpoint: try makeEndpoint(host: "192.168.1.99"), password: "hunter2")
     }
@@ -115,22 +104,23 @@ private func makeEndpoint(
     #expect(call.entries == 2)
 }
 
-@Test func aServerThatAnswersNeverExhaustsItsBudget() async throws {
-    // Every successful mount must return its slot, however many times it is remounted.
-    let budget = BlockingCallBudget(limit: 2)
+@Test func aServerThatAnswersNeverExhaustsItsAllowance() async throws {
+    // Every completed mount returns its slot, however many times it is remounted.
+    let budget = BlockingCallBudget(limit: 1)
+    let endpoint = try makeEndpoint()
     let service = NetFSMountService(
         mountDeadline: .seconds(5),
         unmountDeadline: .seconds(5),
         budget: budget,
         mountCall: { _, _, _ in
             NetFSMountService.MountOutcome(status: 0, firstPath: "/Volumes/Multimedia")
-        }
+        },
+        unmountCall: noopUnmount
     )
-    let endpoint = try makeEndpoint()
 
     for _ in 0..<5 {
         #expect(try await service.mount(endpoint: endpoint, password: "hunter2") == "/Volumes/Multimedia")
     }
 
-    #expect(budget.outstanding(for: "192.168.1.67") == 0)
+    #expect(budget.outstanding(for: NetFSMountService.budgetKey(for: endpoint)) == 0)
 }

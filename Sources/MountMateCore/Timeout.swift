@@ -26,14 +26,23 @@ import Foundation
 /// which would degrade the whole process's concurrency. Callers that probe repeatedly
 /// must not strand a thread per probe: see `WedgedPathRegistry`, which short-circuits
 /// paths already known to hang so the strand happens once, not once per health check.
+/// `onAbandoned` receives the body's value when the deadline won and nobody is left
+/// to take it. It runs **on the worker thread**, after the body returns, and is the
+/// only chance to dispose of a side effect the body performed too late to report — a
+/// mount that landed after its attempt was given up on, say. Without it such a result
+/// is silently dropped.
 public func runBlocking<T: Sendable>(
     timeout: Duration,
+    onAbandoned: (@Sendable (T) -> Void)? = nil,
     _ work: @escaping @Sendable () -> T
 ) async -> T? {
     await withCheckedContinuation { continuation in
         let race = ResumeOnce<T?>(continuation)
         let worker = Thread {
-            race.finish(work())
+            let value = work()
+            if !race.finish(value) {
+                onAbandoned?(value)
+            }
         }
         worker.name = "MountMateCore.runBlocking"
         worker.stackSize = 512 * 1024
@@ -70,6 +79,7 @@ public func withBoundedBlockingTimeout<T: Sendable>(
     _ timeout: Duration,
     key: String,
     budget: BlockingCallBudget = .shared,
+    onAbandoned: (@Sendable (T) -> Void)? = nil,
     _ work: @escaping @Sendable () -> T
 ) async throws -> T {
     guard budget.claim(key) else {
@@ -82,7 +92,7 @@ public func withBoundedBlockingTimeout<T: Sendable>(
         defer { budget.release(key) }
         return work()
     }
-    guard let value = await runBlocking(timeout: timeout, counted) else {
+    guard let value = await runBlocking(timeout: timeout, onAbandoned: onAbandoned, counted) else {
         throw MountFailure(reason: .timedOut)
     }
     return value
@@ -254,11 +264,15 @@ final class ResumeOnce<Value: Sendable>: @unchecked Sendable {
         lock.unlock()
     }
 
-    func finish(_ value: Value) {
+    /// Returns whether this call won the race — that is, whether `value` was actually
+    /// delivered to the caller. A loser's value is dropped, and the loser is the only
+    /// one in a position to know that it must dispose of it.
+    @discardableResult
+    func finish(_ value: Value) -> Bool {
         lock.lock()
         guard let continuation else {
             lock.unlock()
-            return
+            return false
         }
         self.continuation = nil
         finished = true
@@ -268,6 +282,7 @@ final class ResumeOnce<Value: Sendable>: @unchecked Sendable {
 
         continuation.resume(returning: value)
         handler?()
+        return true
     }
 }
 

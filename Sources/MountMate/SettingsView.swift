@@ -46,6 +46,27 @@ struct SharesPane: View {
                     }
                 }
                 .listStyle(.sidebar)
+                .overlay {
+                    // A blank grey rectangle here is indistinguishable from a bug —
+                    // this happens for real when the login Keychain is still locked
+                    // when the pane first appears, so loadDrafts() returns empty and
+                    // there's nothing to explain why. Say what's going on and what to
+                    // do. Kept quiet and small (no ContentUnavailableView icon/hero
+                    // treatment) since this is a sidebar, not a hero panel, and
+                    // non-interactive so it never steals clicks meant for the list.
+                    if drafts.isEmpty {
+                        VStack(spacing: 4) {
+                            Text("No shares")
+                                .foregroundStyle(.secondary)
+                            Text("Click + to add one")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .multilineTextAlignment(.center)
+                        .padding()
+                        .allowsHitTesting(false)
+                    }
+                }
                 HStack(spacing: 2) {
                     Button {
                         drafts.append(ShareDraft())

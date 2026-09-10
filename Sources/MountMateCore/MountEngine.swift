@@ -130,7 +130,7 @@ public actor MountEngine {
     /// expected to disable the endpoint as well — otherwise the next sweep simply
     /// mounts it again (spec §8).
     public func unmount(_ endpoint: ShareEndpoint) async throws {
-        guard let existing = await existingMount(for: endpoint) else {
+        guard let existing = await mounts(for: endpoint).expected else {
             // Already detached. The desired end state, so not an error.
             states[endpoint.id] = .idle
             return
@@ -147,7 +147,12 @@ public actor MountEngine {
     }
 
     private func attempt(_ endpoint: ShareEndpoint) async {
-        if let existing = await existingMount(for: endpoint) {
+        // Strays first: when both a stray and a good mount exist, one pass then
+        // reaches the right state rather than two.
+        let partition = await mounts(for: endpoint)
+        await clearStrays(partition.strays)
+
+        if let existing = partition.expected {
             if await inspector.isResponsive(path: existing.on) {
                 states[endpoint.id] = .mounted(path: existing.on)
                 attempts[endpoint.id] = 0
@@ -227,9 +232,25 @@ public actor MountEngine {
         }
     }
 
-    private func existingMount(for endpoint: ShareEndpoint) async -> MountedVolume? {
-        let identifier = endpoint.mountFromIdentifier
-        return await inspector.mountedVolumes().first { $0.from == identifier }
+    private func mounts(for endpoint: ShareEndpoint) async -> EndpointMounts.Partition {
+        EndpointMounts.partition(await inspector.mountedVolumes(), for: endpoint)
+    }
+
+    /// Detaches mounts of this endpoint that landed anywhere but the expected path.
+    ///
+    /// Best effort by design. A stray at `<name>-1` does not block the expected path,
+    /// so one we cannot clear must not stop a mount that would otherwise work — the
+    /// outcome is decided by the adopt and mount steps that follow. Not forced: these
+    /// are wreckage, not wedged mounts, and forcing would reach past a refusal we have
+    /// no reason to expect.
+    private func clearStrays(_ strays: [MountedVolume]) async {
+        let service = self.service
+        for stray in strays {
+            let path = stray.on
+            try? await withTimeout(unmountDeadline) {
+                try await service.unmount(path: path, force: false)
+            }
+        }
     }
 
     private func fail(_ endpoint: ShareEndpoint, with failure: MountFailure) {

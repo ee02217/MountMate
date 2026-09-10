@@ -334,3 +334,90 @@ private struct HangingUnmountService: MountService {
         }
     }
 }
+
+// MARK: - Sweeping strays
+
+@Test func aStrayMountIsNeverReportedAsMounted() async throws {
+    // The defect 7b's guard could not catch: it inspects only the path a *fresh*
+    // mount returns. A stray already in the table carries the same `from` as the real
+    // share, so the old `.first` lookup adopted it and reported success at a path
+    // Plex cannot use.
+    let service = FakeMountService()
+    let inspector = FakeMountInspector()
+    let endpoint = try makeEndpoint()
+    await inspector.setVolumes([
+        MountedVolume(from: endpoint.mountFromIdentifier, on: "/Volumes/Multimedia-1")
+    ])
+    await inspector.setResponsive(["/Volumes/Multimedia-1"])
+    let engine = makeEngine(service: service, inspector: inspector)
+
+    await engine.ensureMounted(endpoint)
+
+    #expect(await engine.state(for: endpoint.id) != .mounted(path: "/Volumes/Multimedia-1"))
+    #expect(await service.unmountCalls.contains(
+        FakeMountService.UnmountCall(path: "/Volumes/Multimedia-1", force: false)
+    ))
+}
+
+@Test func everyStrayIsClearedInOnePass() async throws {
+    // The incident left six. One per attempt would take six passes.
+    let service = FakeMountService()
+    let inspector = FakeMountInspector()
+    let endpoint = try makeEndpoint()
+    await inspector.setVolumes(
+        (1...6).map {
+            MountedVolume(from: endpoint.mountFromIdentifier, on: "/Volumes/Multimedia-\($0)")
+        }
+    )
+    let engine = makeEngine(service: service, inspector: inspector)
+
+    await engine.ensureMounted(endpoint)
+
+    let cleared = await service.unmountCalls.map(\.path)
+        .filter { $0.hasPrefix("/Volumes/Multimedia-") }
+    #expect(Set(cleared).count == 6)
+}
+
+@Test func aStrayIsClearedAndTheGoodMountAdoptedInTheSamePass() async throws {
+    // Strays are cleared before adoption so one pass reaches the right state.
+    let service = FakeMountService()
+    let inspector = FakeMountInspector()
+    let endpoint = try makeEndpoint()
+    await inspector.setVolumes([
+        MountedVolume(from: endpoint.mountFromIdentifier, on: "/Volumes/Multimedia-1"),
+        MountedVolume(from: endpoint.mountFromIdentifier, on: "/Volumes/Multimedia"),
+    ])
+    await inspector.setResponsive(["/Volumes/Multimedia"])
+    let engine = makeEngine(service: service, inspector: inspector)
+
+    await engine.ensureMounted(endpoint)
+
+    #expect(await engine.state(for: endpoint.id) == .mounted(path: "/Volumes/Multimedia"))
+    // Non-forced, because a stray is wreckage rather than a wedged mount. Asserting
+    // the path alone let this pass against the old code, which reached the same path
+    // by mistaking the stray for a *stale* mount and force-unmounting it.
+    #expect(await service.unmountCalls == [
+        FakeMountService.UnmountCall(path: "/Volumes/Multimedia-1", force: false)
+    ])
+    // And the good mount was adopted, not torn down and rebuilt.
+    #expect(await service.mountCalls.isEmpty)
+}
+
+@Test func aStrayThatWillNotUnmountDoesNotStopAGoodMountBeingReported() async throws {
+    // A stray at `-1` does not block `/Volumes/Multimedia`, so failing to clear it
+    // must not deny the user a mount that works.
+    let service = FakeMountService()
+    await service.setUnmountResult(.failure(MountFailure(reason: .mountpointBusy)))
+    let inspector = FakeMountInspector()
+    let endpoint = try makeEndpoint()
+    await inspector.setVolumes([
+        MountedVolume(from: endpoint.mountFromIdentifier, on: "/Volumes/Multimedia-1"),
+        MountedVolume(from: endpoint.mountFromIdentifier, on: "/Volumes/Multimedia"),
+    ])
+    await inspector.setResponsive(["/Volumes/Multimedia"])
+    let engine = makeEngine(service: service, inspector: inspector)
+
+    await engine.ensureMounted(endpoint)
+
+    #expect(await engine.state(for: endpoint.id) == .mounted(path: "/Volumes/Multimedia"))
+}

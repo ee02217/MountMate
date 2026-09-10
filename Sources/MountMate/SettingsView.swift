@@ -119,13 +119,22 @@ struct SharesPane: View {
                     TextField("Host", text: $drafts[index].host)
                     TextField("Share", text: $drafts[index].sharePath)
                     TextField("Username", text: $drafts[index].username)
-                    SecureField(
-                        drafts[index].hasStoredPassword ? "Password (saved)" : "Password",
-                        text: Binding(
-                            get: { drafts[index].password ?? "" },
-                            set: { drafts[index].password = $0.isEmpty ? nil : $0 }
-                        )
-                    )
+                    LabeledContent("Password") {
+                        HStack(spacing: 8) {
+                            SecureField(
+                                drafts[index].hasStoredPassword ? "Saved" : "Required",
+                                text: Binding(
+                                    get: { drafts[index].password ?? "" },
+                                    set: { drafts[index].password = $0.isEmpty ? nil : $0 }
+                                )
+                            )
+                            if drafts[index].hasStoredPassword {
+                                Image(systemName: "key.fill")
+                                    .foregroundStyle(.secondary)
+                                    .help("A password is saved in the Keychain")
+                            }
+                        }
+                    }
                     Toggle("Enabled", isOn: $drafts[index].enabled)
                     Toggle("Read only", isOn: $drafts[index].readOnly)
 

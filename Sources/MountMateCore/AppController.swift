@@ -47,6 +47,7 @@ public actor AppController {
         self.engine = MountEngine(
             service: service,
             inspector: inspector,
+            log: log,
             passwordProvider: { endpoint in
                 await credentials.password(for: endpoint)
             }

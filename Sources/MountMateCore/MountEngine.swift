@@ -10,6 +10,9 @@ public actor MountEngine {
     private let mountDeadline: Duration
     private let unmountDeadline: Duration
     private let passwordProvider: @Sendable (ShareEndpoint) async -> String?
+    /// Optional, like `MountCoordinator`'s: the engine's correctness must not depend
+    /// on anyone listening.
+    private let log: (any ActivityLog)?
 
     private var states: [UUID: MountState] = [:]
     private var attempts: [UUID: Int] = [:]
@@ -31,6 +34,7 @@ public actor MountEngine {
         backoff: BackoffPolicy = .standard,
         mountDeadline: Duration = .seconds(45),
         unmountDeadline: Duration = .seconds(20),
+        log: (any ActivityLog)? = nil,
         passwordProvider: @escaping @Sendable (ShareEndpoint) async -> String?
     ) {
         self.service = service
@@ -38,6 +42,7 @@ public actor MountEngine {
         self.backoff = backoff
         self.mountDeadline = mountDeadline
         self.unmountDeadline = unmountDeadline
+        self.log = log
         self.passwordProvider = passwordProvider
     }
 
@@ -150,7 +155,7 @@ public actor MountEngine {
         // Strays first: when both a stray and a good mount exist, one pass then
         // reaches the right state rather than two.
         let partition = await mounts(for: endpoint)
-        await clearStrays(partition.strays)
+        await clearStrays(partition.strays, for: endpoint)
 
         if let existing = partition.expected {
             if await inspector.isResponsive(path: existing.on) {
@@ -276,12 +281,24 @@ public actor MountEngine {
     /// outcome is decided by the adopt and mount steps that follow. Not forced: these
     /// are wreckage, not wedged mounts, and forcing would reach past a refusal we have
     /// no reason to expect.
-    private func clearStrays(_ strays: [MountedVolume]) async {
+    private func clearStrays(_ strays: [MountedVolume], for endpoint: ShareEndpoint) async {
         let service = self.service
         for stray in strays {
             let path = stray.on
-            try? await withTimeout(unmountDeadline) {
-                try await service.unmount(path: path, force: false)
+            do {
+                try await withTimeout(unmountDeadline) {
+                    try await service.unmount(path: path, force: false)
+                }
+            } catch {
+                // Logged rather than surfaced as the endpoint's state: the outcome
+                // belongs to the adopt and mount steps that follow. But a mount
+                // nothing can detach is a fact the user may need and cannot infer
+                // from anywhere else.
+                await log?.append(ActivityEntry(
+                    category: .mount,
+                    share: endpoint.displayName,
+                    message: "could not detach stray mount at \(path)"
+                ))
             }
         }
     }

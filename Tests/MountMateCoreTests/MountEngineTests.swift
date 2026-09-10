@@ -494,3 +494,35 @@ private struct HangingUnmountService: MountService {
 
     #expect(await engine.state(for: endpoint.id) == .mounted(path: "/Volumes/Multimedia"))
 }
+
+/// Collects entries in memory. `FileActivityLog` writes to disk, which this test has
+/// no reason to touch.
+private actor RecordingLog: ActivityLog {
+    private(set) var entries: [ActivityEntry] = []
+    func append(_ entry: ActivityEntry) async { entries.append(entry) }
+    func recent(limit: Int) async -> [ActivityEntry] { Array(entries.suffix(limit)) }
+}
+
+@Test func aStrayThatWillNotClearIsLogged() async throws {
+    // It does not become the endpoint's state — the outcome belongs to the mount that
+    // follows — but a mount nothing can detach is something the user may need to know.
+    let service = FakeMountService()
+    await service.setUnmountResult(.failure(MountFailure(reason: .mountpointBusy)))
+    let inspector = FakeMountInspector()
+    let endpoint = try makeEndpoint()
+    await inspector.setVolumes([
+        MountedVolume(from: endpoint.mountFromIdentifier, on: "/Volumes/Multimedia-1")
+    ])
+    let log = RecordingLog()
+    let engine = MountEngine(
+        service: service,
+        inspector: inspector,
+        log: log,
+        passwordProvider: { _ in "hunter2" }
+    )
+
+    await engine.ensureMounted(endpoint)
+
+    let messages = await log.entries.map(\.message)
+    #expect(messages.contains { $0.contains("/Volumes/Multimedia-1") })
+}

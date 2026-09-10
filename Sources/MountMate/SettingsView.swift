@@ -33,16 +33,19 @@ struct SharesPane: View {
     var body: some View {
         HSplitView {
             VStack(spacing: 0) {
-                // .listStyle(.sidebar) made the List render zero rows once it lived
-                // directly in an HSplitView pane (not a NavigationSplitView column) —
-                // the "Multimedia" share stopped drawing even though `drafts` loaded
-                // fine. Visible rows beat sidebar vibrancy, so the style is dropped.
+                // The "Multimedia" share appeared to stop drawing even though
+                // `drafts` loaded fine, and .listStyle(.sidebar) was blamed and
+                // dropped — but the List was legitimately empty: the app was
+                // blocked on a login-Keychain prompt, so loadDrafts() hadn't
+                // returned anything yet. Once the password was entered, the row
+                // rendered correctly with .listStyle(.sidebar) in place. Restored.
                 List(selection: $selection) {
                     ForEach(drafts) { draft in
                         Text(draft.displayName.isEmpty ? "Untitled" : draft.displayName)
                             .tag(draft.id)
                     }
                 }
+                .listStyle(.sidebar)
                 HStack(spacing: 2) {
                     Button {
                         drafts.append(ShareDraft())
@@ -75,7 +78,12 @@ struct SharesPane: View {
                 // it, whatever the glass bar's height happens to be.
                 .safeAreaPadding(.bottom)
             }
-            .frame(minWidth: 160)
+            // A floor with no ceiling let the List consume the HSplitView: with
+            // the sidebar finally populated (see above), it claimed ~710pt of a
+            // 900pt window and left the detail Form ~150pt wide, wrapping labels
+            // mid-word and truncating field values. Cap the band so the detail
+            // form keeps the majority of the width.
+            .frame(minWidth: 160, idealWidth: 200, maxWidth: 260)
 
             if let index = drafts.firstIndex(where: { $0.id == selection }) {
                 Form {

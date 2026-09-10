@@ -32,3 +32,66 @@ func makeStatus(
     let status = makeStatus(state: .stale(path: "/Volumes/Multimedia"))
     #expect(status.mountPath == "/Volumes/Multimedia")
 }
+
+@Test func anyFailureMakesTheIconAWarning() {
+    let presentation = MenuPresentation(statuses: [
+        makeStatus(name: "Multimedia", state: .mounted(path: "/Volumes/Multimedia")),
+        makeStatus(name: "Backup", state: .failed(MountFailure(reason: .hostUnreachable))),
+    ])
+    #expect(presentation.iconSymbolName == "externaldrive.badge.exclamationmark")
+}
+
+@Test func allMountedMakesTheIconACheckmark() {
+    let presentation = MenuPresentation(statuses: [
+        makeStatus(name: "Multimedia", state: .mounted(path: "/Volumes/Multimedia")),
+        makeStatus(name: "Backup", state: .mounted(path: "/Volumes/Backup")),
+    ])
+    #expect(presentation.iconSymbolName == "externaldrive.badge.checkmark")
+}
+
+/// A disabled endpoint is not a problem, so it must not raise the warning icon.
+@Test func disabledEndpointsDoNotWarn() {
+    let presentation = MenuPresentation(statuses: [
+        makeStatus(name: "Multimedia", state: .mounted(path: "/Volumes/Multimedia")),
+        makeStatus(name: "Backup", state: .idle, enabled: false),
+    ])
+    #expect(presentation.iconSymbolName == "externaldrive.badge.checkmark")
+}
+
+@Test func nothingConfiguredIsAPlainIcon() {
+    #expect(MenuPresentation(statuses: []).iconSymbolName == "externaldrive")
+}
+
+@Test func aMountedRowShowsItsPathAndOffersUnmount() throws {
+    let presentation = MenuPresentation(statuses: [
+        makeStatus(name: "Multimedia", state: .mounted(path: "/Volumes/Multimedia"))
+    ])
+    let row = try #require(presentation.rows.first)
+
+    #expect(row.title == "Multimedia")
+    #expect(row.subtitle == "/Volumes/Multimedia")
+    #expect(row.dot == .mounted)
+    #expect(row.actionTitle == "Unmount")
+}
+
+@Test func aDisabledRowOffersToMountAndSaysWhyItIsIdle() throws {
+    let presentation = MenuPresentation(statuses: [
+        makeStatus(name: "Backup", state: .idle, enabled: false)
+    ])
+    let row = try #require(presentation.rows.first)
+
+    #expect(row.dot == .disabled)
+    #expect(row.subtitle == "Disabled")
+    #expect(row.actionTitle == "Mount")
+}
+
+@Test func aFailedRowNamesTheReason() throws {
+    let presentation = MenuPresentation(statuses: [
+        makeStatus(name: "Backup", state: .failed(MountFailure(reason: .hostUnreachable)))
+    ])
+    let row = try #require(presentation.rows.first)
+
+    #expect(row.dot == .failed)
+    #expect(row.subtitle == "Host unreachable")
+    #expect(row.actionTitle == "Retry")
+}

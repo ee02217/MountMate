@@ -2,12 +2,17 @@ import Foundation
 
 /// How tightly the stored password is bound to this application.
 ///
-/// Spec §6: a Keychain ACL binds to the code-signing identity, and an ad-hoc
-/// signature's identity changes on every rebuild — so an app-restricted ACL would
-/// make macOS treat the app as a stranger after each upgrade and raise an
-/// authorization prompt. On a headless Mac that is the same class of bug the whole
-/// project exists to close, so until milestone 7 provides a stable self-signed
-/// identity the policy is `.permissive` and the app says so out loud.
+/// In practice `.permissive` is the only reachable value (spec §6.1). Restricting a
+/// Keychain item to one application requires `SecAccessCreate` and
+/// `SecTrustedApplicationCreateFromPath` — deprecated since 10.10 — or
+/// `kSecAttrAccessGroup`, which needs a paid Apple team identifier. The self-signed
+/// identity milestone 7a introduces gives a stable designated requirement, which is
+/// what `SMAppService` needs for launch-at-login, but it does not unlock an
+/// app-restricted ACL.
+///
+/// `.appRestricted` stays defined because the distinction is real and the Diagnostics
+/// pane reports which is in force; it becomes reachable if this app ever ships with a
+/// team identifier.
 public enum CredentialAccessPolicy: Sendable, Equatable {
     /// Readable by any process running as this user — the same trust boundary as a
     /// mode-600 file. Must be surfaced to the user, never left silent.

@@ -38,8 +38,9 @@ enum KeychainQuery {
 public struct KeychainCredentialStore: CredentialStore {
     public init() {}
 
-    /// Permissive until milestone 7 provides a stable signing identity. See
-    /// `CredentialAccessPolicy` and spec §6 — this must be surfaced, never silent.
+    /// Always `.permissive`: see `CredentialAccessPolicy` and spec §6.1 for why an
+    /// app-restricted ACL is not reachable without a paid team identifier. Reported
+    /// rather than hidden, because §6 requires the boundary to be visible.
     public var accessPolicy: CredentialAccessPolicy {
         get async { .permissive }
     }

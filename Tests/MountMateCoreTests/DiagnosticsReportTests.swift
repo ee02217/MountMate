@@ -16,6 +16,10 @@ import Foundation
     #expect(text.contains("permissive"))
     #expect(text.contains("0.1-dev"))
     #expect(text.contains("26.5.2"))
+
+    // Spec §6.1: it must not claim a signed install will change this. It will not —
+    // restricting a Keychain item to one app needs a paid team ID.
+    #expect(!text.lowercased().contains("will restrict"))
 }
 
 @Test func theReportListsSharesWithoutAnySecret() throws {

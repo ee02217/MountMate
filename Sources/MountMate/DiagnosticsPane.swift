@@ -13,9 +13,10 @@ struct DiagnosticsPane: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if policy == .permissive {
-                // Spec §6 requires this to be visible, never silent.
+                // Spec §6 requires this to be visible, never silent — and §6.1
+                // requires it not to promise a fix that does not exist.
                 Label(
-                    "Passwords are readable by any process running as you. A signed installation will restrict this.",
+                    "Passwords are readable by any process running as you — the same as a file in your home folder. macOS cannot restrict this further without a paid Apple developer account.",
                     systemImage: "exclamationmark.triangle"
                 )
                 .font(.callout)

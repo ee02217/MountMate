@@ -11,6 +11,8 @@ struct SettingsView: View {
                 .tabItem { Label("Shares", systemImage: "externaldrive") }
             GeneralPane()
                 .tabItem { Label("General", systemImage: "gearshape") }
+            DiagnosticsPane(model: model)
+                .tabItem { Label("Diagnostics", systemImage: "stethoscope") }
         }
         .frame(width: 520, height: 380)
     }

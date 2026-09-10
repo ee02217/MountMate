@@ -31,9 +31,13 @@ final class MenuModel {
 
     private let controller: AppController
     let settings: SettingsController
+    let activityLog: FileActivityLog
     private var pump: Task<Void, Never>?
 
     init() {
+        let log = FileActivityLog(directory: JSONEndpointStore.defaultDirectory())
+        self.activityLog = log
+
         let controller = AppController(
             endpointStore: JSONEndpointStore(directory: JSONEndpointStore.defaultDirectory()),
             credentialStore: KeychainCredentialStore(),
@@ -41,7 +45,8 @@ final class MenuModel {
                 NetworkTriggerSource(),
                 WakeTriggerSource(),
                 BackstopTimerSource(),
-            ]
+            ],
+            log: log
         )
         self.controller = controller
         self.settings = SettingsController(
@@ -68,4 +73,9 @@ final class MenuModel {
     func reveal(_ path: String) {
         NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
     }
+
+    /// Forwarding accessors for the Diagnostics pane: `controller` stays private so
+    /// the views cannot reach past the model into the actor graph.
+    func controllerLoad() async -> EndpointLoad { await controller.lastLoad }
+    func controllerPolicy() async -> CredentialAccessPolicy { await controller.accessPolicy }
 }

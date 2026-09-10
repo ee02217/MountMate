@@ -37,8 +37,25 @@ final class MenuModel {
     /// warning. Through the existential the requirements really are async.
     let preferences: any PreferencesStore
     private var pump: Task<Void, Never>?
+    private let instanceLock: InstanceLock
 
     init() {
+        // Before anything touches a mount. A second copy racing the first is what
+        // produced /Volumes/Multimedia-1 and took a Plex library offline (spec §9.1).
+        guard let lock = InstanceLock(path: InstanceLock.defaultPath()) else {
+            let alert = NSAlert()
+            alert.messageText = "MountMate is already running"
+            alert.informativeText = """
+                Another copy of MountMate is running — look for its icon in the menu \
+                bar. Two copies can fight over the same share and mount it in the \
+                wrong place.
+                """
+            alert.runModal()
+            NSApplication.shared.terminate(nil)
+            fatalError("unreachable: terminate(_:) does not return")
+        }
+        self.instanceLock = lock
+
         let log = FileActivityLog(directory: JSONEndpointStore.defaultDirectory())
         self.activityLog = log
 

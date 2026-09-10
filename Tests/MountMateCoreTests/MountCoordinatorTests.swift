@@ -313,3 +313,62 @@ private func pollUntil(
 
     await coordinator.stop()
 }
+
+@Test func theCoordinatorLogsAChangeButNotARepeat() async throws {
+    let service = FakeMountService()
+    let inspector = FakeMountInspector()
+    let engine = makeEngine(service: service, inspector: inspector)
+    let endpoint = try makeEndpoint()
+    let log = InMemoryActivityLog()
+
+    let coordinator = MountCoordinator(
+        engine: engine,
+        endpointsProvider: { [endpoint] },
+        sources: [],
+        scheduler: FakeScheduler(limit: 0),
+        log: log
+    )
+
+    await coordinator.handle(.backstop)
+    let firstEntries = await log.entries
+    let afterFirst = firstEntries.filter { $0.category == .mount }.count
+    #expect(afterFirst == 1)
+
+    // Already mounted and unchanged: the second sweep must add nothing.
+    await inspector.setVolumes([
+        MountedVolume(from: endpoint.mountFromIdentifier, on: "/Volumes/Fake")
+    ])
+    await inspector.setResponsive(["/Volumes/Fake"])
+    await coordinator.handle(.backstop)
+
+    let secondEntries = await log.entries
+    #expect(secondEntries.filter { $0.category == .mount }.count == afterFirst)
+
+    await coordinator.stop()
+}
+
+@Test func startAndStopAreLogged() async throws {
+    let service = FakeMountService()
+    let inspector = FakeMountInspector()
+    let engine = makeEngine(service: service, inspector: inspector)
+    let log = InMemoryActivityLog()
+
+    let coordinator = MountCoordinator(
+        engine: engine,
+        endpointsProvider: { [] },
+        sources: [],
+        scheduler: FakeScheduler(limit: 0),
+        log: log
+    )
+    await coordinator.start()
+    try await pollUntil {
+        let entries = await log.entries
+        return entries.contains { $0.message == "started" }
+    }
+
+    await coordinator.stop()
+    try await pollUntil {
+        let entries = await log.entries
+        return entries.contains { $0.message == "stopped" }
+    }
+}

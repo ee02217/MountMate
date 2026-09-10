@@ -23,16 +23,22 @@ public actor MountCoordinator {
     private let statusContinuation: AsyncStream<[EndpointStatus]>.Continuation
     private let statusStream: AsyncStream<[EndpointStatus]>
 
+    private let log: (any ActivityLog)?
+    /// The snapshot the last publish produced, for diffing. `nil` until the first.
+    private var previousSnapshot: [EndpointStatus]?
+
     public init(
         engine: MountEngine,
         endpointsProvider: @escaping @Sendable () async -> [ShareEndpoint],
         sources: [any TriggerSource],
-        scheduler: any Scheduler = SystemScheduler()
+        scheduler: any Scheduler = SystemScheduler(),
+        log: (any ActivityLog)? = nil
     ) {
         self.engine = engine
         self.endpointsProvider = endpointsProvider
         self.sources = sources
         self.scheduler = scheduler
+        self.log = log
 
         var captured: AsyncStream<[EndpointStatus]>.Continuation!
         statusStream = AsyncStream { captured = $0 }
@@ -57,6 +63,15 @@ public actor MountCoordinator {
                 )
             )
         }
+        if let log {
+            for entry in TransitionLogger.entries(
+                from: previousSnapshot, to: snapshot, at: Date()
+            ) {
+                await log.append(entry)
+            }
+        }
+        previousSnapshot = snapshot
+
         statusContinuation.yield(snapshot)
     }
 
@@ -89,7 +104,10 @@ public actor MountCoordinator {
         guard consumption == nil else { return }
 
         let sources = self.sources
-        consumption = Task { [weak self] in
+        consumption = Task { [weak self, log] in
+            await log?.append(
+                ActivityEntry(category: .lifecycle, share: nil, message: "started")
+            )
             await self?.handle(.launch)
 
             await withTaskGroup(of: Void.self) { group in
@@ -109,6 +127,15 @@ public actor MountCoordinator {
 
     /// Stops consuming and cancels every pending retry. Safe to call more than once.
     public func stop() {
+        if let log {
+            // Detached because `stop()` is not async and must stay callable from
+            // teardown paths that cannot await.
+            Task {
+                await log.append(
+                    ActivityEntry(category: .lifecycle, share: nil, message: "stopped")
+                )
+            }
+        }
         consumption?.cancel()
         consumption = nil
         for task in retryTasks.values { task.cancel() }

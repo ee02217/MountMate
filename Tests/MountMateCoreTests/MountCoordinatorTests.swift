@@ -84,3 +84,45 @@ private func makeEngine(
     let mounted = await service.mountCalls.map(\.endpointID)
     #expect(mounted == [second.id])
 }
+
+@Test func aGenuineReconnectClearsTheRetryLadder() async throws {
+    let service = FakeMountService()
+    let inspector = FakeMountInspector()
+    await service.setMountResult(.failure(MountFailure(reason: .hostUnreachable)))
+    let engine = makeEngine(service: service, inspector: inspector)
+    let endpoint = try makeEndpoint()
+
+    let coordinator = MountCoordinator(
+        engine: engine,
+        endpointsProvider: { [endpoint] },
+        sources: []
+    )
+    await coordinator.handle(.backstop)
+    await coordinator.handle(.backstop)
+    let grown = await engine.retryDelay(for: endpoint.id)
+    #expect(grown == .seconds(10))
+
+    // The reset lands, then this event's own failed attempt puts the count at 1.
+    await coordinator.handle(.networkBecameSatisfied)
+    #expect(await engine.retryDelay(for: endpoint.id) == .seconds(5))
+}
+
+@Test func anOrdinaryPathUpdateLeavesTheLadderAlone() async throws {
+    let service = FakeMountService()
+    let inspector = FakeMountInspector()
+    await service.setMountResult(.failure(MountFailure(reason: .hostUnreachable)))
+    let engine = makeEngine(service: service, inspector: inspector)
+    let endpoint = try makeEndpoint()
+
+    let coordinator = MountCoordinator(
+        engine: engine,
+        endpointsProvider: { [endpoint] },
+        sources: []
+    )
+    await coordinator.handle(.backstop)
+    await coordinator.handle(.backstop)
+
+    // No reset: this is the third failure, so the ladder keeps growing.
+    await coordinator.handle(.networkChanged)
+    #expect(await engine.retryDelay(for: endpoint.id) == .seconds(20))
+}

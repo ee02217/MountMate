@@ -25,6 +25,11 @@ public actor MountCoordinator {
     /// Public rather than private so tests drive the coordinator directly instead of
     /// through a stream, which keeps them free of any timing assumption.
     public func handle(_ event: TriggerEvent) async {
+        // Before the sweep, so this event's own attempt starts from a clean ladder.
+        if event.resetsBackoff {
+            await engine.resetBackoff()
+        }
+
         switch event {
         case .userRequested(.some(let id)):
             guard let endpoint = await endpointsProvider().first(where: { $0.id == id })

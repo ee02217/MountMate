@@ -96,7 +96,23 @@ public actor AppController {
         await coordinator.handle(.userRequested(id))
     }
 
-    private func reload() async {
+    /// The endpoints currently in force.
+    public var endpoints: [ShareEndpoint] { cache.endpoints() }
+
+    /// Replaces the endpoint list: persist, refresh the cache, sweep.
+    ///
+    /// Same order as `toggle` — persist before sweeping, so a crash between the two
+    /// leaves the file correct rather than the mounts correct.
+    public func apply(_ endpoints: [ShareEndpoint]) async throws {
+        try await endpointStore.save(endpoints)
+        cache.set(endpoints)
+        lastLoad = EndpointLoad(endpoints: endpoints)
+        await coordinator.handle(.userRequested(nil))
+    }
+
+    /// Re-reads the store. Public because the Settings pane and any external edit to
+    /// `endpoints.json` both need it — milestone 5a could only load at `start()`.
+    public func reload() async {
         guard let load = try? await endpointStore.load() else { return }
         lastLoad = load
         cache.set(load.endpoints)

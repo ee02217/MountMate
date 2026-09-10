@@ -113,3 +113,50 @@ import Foundation
 
     await controller.stop()
 }
+
+@Test func applyingEndpointsPersistsThemAndRefreshesTheCache() async throws {
+    let first = try makeStoreEndpoint(name: "Multimedia")
+    let endpointStore = InMemoryEndpointStore(endpoints: [first])
+    let controller = AppController(
+        endpointStore: endpointStore,
+        credentialStore: InMemoryCredentialStore(),
+        sources: [],
+        scheduler: FakeScheduler(limit: 0),
+        service: FakeMountService(),
+        inspector: FakeMountInspector()
+    )
+    await controller.start()
+    #expect(await controller.endpoints.count == 1)
+
+    let second = try makeStoreEndpoint(name: "Backup")
+    try await controller.apply([first, second])
+
+    #expect(await controller.endpoints.count == 2)
+    let reloaded = try await endpointStore.load()
+    #expect(reloaded.endpoints.count == 2)
+
+    await controller.stop()
+}
+
+/// The gap milestone 5a left: edits to the file had no effect while running.
+@Test func reloadPicksUpChangesMadeOutsideTheController() async throws {
+    let first = try makeStoreEndpoint(name: "Multimedia")
+    let endpointStore = InMemoryEndpointStore(endpoints: [first])
+    let controller = AppController(
+        endpointStore: endpointStore,
+        credentialStore: InMemoryCredentialStore(),
+        sources: [],
+        scheduler: FakeScheduler(limit: 0),
+        service: FakeMountService(),
+        inspector: FakeMountInspector()
+    )
+    await controller.start()
+
+    try await endpointStore.save([first, try makeStoreEndpoint(name: "Backup")])
+    #expect(await controller.endpoints.count == 1)
+
+    await controller.reload()
+    #expect(await controller.endpoints.count == 2)
+
+    await controller.stop()
+}

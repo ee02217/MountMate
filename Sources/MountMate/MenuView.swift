@@ -43,7 +43,6 @@ struct MenuView: View {
             }
         }
 
-        Color.clear.frame(minWidth: 220, maxHeight: 0)
         Divider()
         SettingsLink { Text("Settings…") }
             .keyboardShortcut(",")

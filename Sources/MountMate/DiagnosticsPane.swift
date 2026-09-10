@@ -40,15 +40,24 @@ struct DiagnosticsPane: View {
                     .font(.system(.caption, design: .monospaced))
             }
 
-            HStack {
-                Spacer()
-                Button(copied ? "Copied" : "Copy diagnostics") { copy() }
-            }
-            Text("Includes your share hostnames, usernames and paths. Never includes passwords.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
         .padding()
+        .safeAreaInset(edge: .bottom) {
+            GlassEffectContainer(spacing: 12) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Includes your share hostnames, usernames and paths. Never includes passwords.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button(copied ? "Copied" : "Copy diagnostics") { copy() }
+                        .buttonStyle(.glass)
+                }
+                .padding()
+                .glassEffect(.regular, in: .rect(cornerRadius: 16))
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+        }
         .task { await refresh() }
     }
 

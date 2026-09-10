@@ -84,6 +84,7 @@ struct SharesPane: View {
                         }
                     }
                 }
+                .formStyle(.grouped)
                 .padding()
                 .padding(.trailing, 8)
             } else {
@@ -231,6 +232,7 @@ struct GeneralPane: View {
                     Task { await model.preferences.setNotifyOnRecovery(enabled) }
                 }
         }
+        .formStyle(.grouped)
         .padding()
         .task {
             let seconds = await model.preferences.healthCheckInterval.components.seconds

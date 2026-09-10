@@ -198,6 +198,9 @@ struct SharesPane: View {
             drafts = await model.settings.loadDrafts()
             loaded = true
         }
+        // A red "Failed:" row from the previously selected share must not be read
+        // as this one's result just because the pane hasn't refreshed yet.
+        .onChange(of: selection) { testResult = nil }
     }
 
     private func save() {

@@ -99,6 +99,11 @@ public actor AppController {
     /// The endpoints currently in force.
     public var endpoints: [ShareEndpoint] { cache.endpoints() }
 
+    /// The Keychain policy actually in force, for the Diagnostics pane to warn about.
+    public var accessPolicy: CredentialAccessPolicy {
+        get async { await credentialStore.accessPolicy }
+    }
+
     /// Replaces the endpoint list: persist, refresh the cache, sweep.
     ///
     /// Same order as `toggle` — persist before sweeping, so a crash between the two

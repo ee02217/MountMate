@@ -13,9 +13,11 @@ actor FakeMountService: MountService {
 
     var mountResult: Result<String, MountFailure> = .success("/Volumes/Fake")
     var mountDelay: Duration = .zero
+    var unmountResult: Result<Void, MountFailure> = .success(())
 
     func setMountResult(_ result: Result<String, MountFailure>) { mountResult = result }
     func setMountDelay(_ delay: Duration) { mountDelay = delay }
+    func setUnmountResult(_ result: Result<Void, MountFailure>) { unmountResult = result }
 
     func mount(endpoint: ShareEndpoint, password: String) async throws -> String {
         mountCalls.append(MountCall(endpointID: endpoint.id, password: password))
@@ -25,6 +27,7 @@ actor FakeMountService: MountService {
 
     func unmount(path: String, force: Bool) async throws {
         unmountCalls.append(path)
+        try unmountResult.get()
     }
 }
 

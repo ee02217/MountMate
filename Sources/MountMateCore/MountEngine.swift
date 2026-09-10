@@ -12,6 +12,13 @@ public actor MountEngine {
 
     private var states: [UUID: MountState] = [:]
     private var attempts: [UUID: Int] = [:]
+    /// Endpoint ids with an `ensureMounted` call currently in flight. `ensureMounted`
+    /// suspends at several `await` points (mount-table lookup, responsiveness probe,
+    /// password fetch, the mount itself); without this guard, two near-simultaneous
+    /// triggers for the same endpoint (a real scenario once the trigger layer fires on
+    /// network changes, wake, and a timer) can both race past the "already mounted"
+    /// check and both call `service.mount`, mounting the same share twice.
+    private var inFlight: Set<UUID> = []
 
     public init(
         service: any MountService,
@@ -48,15 +55,30 @@ public actor MountEngine {
             return
         }
 
+        // No `await` between the check and the insert: on an actor that makes the
+        // pair atomic, so a concurrent call for the same endpoint bails out instead
+        // of racing this one to `service.mount`.
+        guard !inFlight.contains(endpoint.id) else { return }
+        inFlight.insert(endpoint.id)
+        defer { inFlight.remove(endpoint.id) }
+
         if let existing = await existingMount(for: endpoint) {
             if await inspector.isResponsive(path: existing.on) {
                 states[endpoint.id] = .mounted(path: existing.on)
                 attempts[endpoint.id] = 0
                 return
             }
-            // Listed but dead. Clear it before remounting.
+            // Listed but dead. Clear it before remounting. A force-unmount that itself
+            // fails is a mount failure, not something to paper over: reporting
+            // `.mounted` while the dead mount is still attached would be the engine
+            // lying about the one thing it exists to get right.
             states[endpoint.id] = .stale(path: existing.on)
-            try? await service.unmount(path: existing.on, force: true)
+            do {
+                try await service.unmount(path: existing.on, force: true)
+            } catch {
+                fail(endpoint, with: MountFailure(reason: .mountpointBusy))
+                return
+            }
         }
 
         guard let password = await passwordProvider(endpoint) else {

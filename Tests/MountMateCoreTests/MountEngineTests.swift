@@ -126,6 +126,39 @@ private func makeEngine(
     #expect(await service.mountCalls.isEmpty)
 }
 
+@Test func concurrentEnsureMountedCallsOnlyMountOnce() async {
+    let service = FakeMountService()
+    await service.setMountResult(.success("/Volumes/Multimedia"))
+    await service.setMountDelay(.milliseconds(100))
+    let engine = makeEngine(service: service, inspector: FakeMountInspector())
+    let endpoint = makeEndpoint()
+
+    async let first: Void = engine.ensureMounted(endpoint)
+    async let second: Void = engine.ensureMounted(endpoint)
+    _ = await (first, second)
+
+    #expect(await service.mountCalls.count == 1)
+    #expect(await engine.state(for: endpoint.id) == .mounted(path: "/Volumes/Multimedia"))
+}
+
+@Test func failingForceUnmountFailsClosedWithoutRemounting() async {
+    let service = FakeMountService()
+    await service.setUnmountResult(.failure(MountFailure(reason: .mountpointBusy)))
+    let inspector = FakeMountInspector()
+    let endpoint = makeEndpoint()
+    await inspector.setVolumes([
+        MountedVolume(from: endpoint.mountFromIdentifier, on: "/Volumes/Multimedia")
+    ])
+    await inspector.setResponsive([])           // listed, but does not answer
+    let engine = makeEngine(service: service, inspector: inspector)
+
+    await engine.ensureMounted(endpoint)
+
+    #expect(await engine.state(for: endpoint.id) == .failed(MountFailure(reason: .mountpointBusy)))
+    #expect(await service.mountCalls.isEmpty)
+    #expect(await engine.retryDelay(for: endpoint.id) != nil)
+}
+
 @Test func skipsDisabledEndpoints() async {
     let service = FakeMountService()
     var endpoint = makeEndpoint()

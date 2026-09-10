@@ -48,7 +48,10 @@ struct DiagnosticsPane: View {
                 ActivityRow(entry: entry)
                     .listRowSeparator(.hidden)
             }
-            .contentMargins(.bottom, 76, for: .scrollContent)
+            // Unlike the Shares detail Form, this list has no other bottom padding
+            // of its own, so the content margin here is the whole clearance, not a
+            // top-up on top of something else.
+            .contentMargins(.bottom, GlassBar.clearance, for: .scrollContent)
 
         }
         .padding()

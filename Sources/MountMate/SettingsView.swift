@@ -2,6 +2,17 @@ import SwiftUI
 import ServiceManagement
 import MountMateCore
 
+/// Clearance the floating glass bar needs from whatever content sits behind it.
+///
+/// Derived from the bar's own construction: the HStack's `.padding()` adds ~16pt top
+/// and bottom, the buttons contribute roughly 20-24pt of height, and the
+/// safeAreaInset itself adds `.padding(.bottom, 8)` beneath the capsule — call it
+/// 60-70pt total. 76 clears that with a few points of margin so nothing sitting
+/// under the bar is ever actually covered.
+enum GlassBar {
+    static let clearance: CGFloat = 76
+}
+
 struct SettingsView: View {
     let model: MenuModel
 
@@ -103,11 +114,8 @@ struct SharesPane: View {
                 // a child pane's separately-hosted SwiftUI environment. So there is
                 // no ambient inset for safeAreaPadding to pick up down here.
                 // Fall back to a fixed bottom padding sized to clear the glass bar
-                // outright: the bar is its own HStack padding (~32-40pt) plus a
-                // .glassEffect capsule with further internal padding plus the
-                // safeAreaInset's own .padding(.bottom, 8), roughly 60-70pt total.
-                // 76pt clears that with margin so the buttons are never covered.
-                .padding(.bottom, 76)
+                // outright — see `GlassBar.clearance` for how that number is derived.
+                .padding(.bottom, GlassBar.clearance)
             }
             // A floor with no ceiling let the List consume the HSplitView: with
             // the sidebar finally populated (see above), it claimed ~710pt of a
@@ -157,6 +165,9 @@ struct SharesPane: View {
                 .formStyle(.grouped)
                 .padding()
                 .padding(.trailing, 8)
+                // The bar floats over this pane too once the window nears its
+                // minHeight; clear it the same amount as everywhere else.
+                .padding(.bottom, GlassBar.clearance)
             } else {
                 Text("Select a share")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "MountMate",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v26)],
     products: [
         .library(name: "MountMateCore", targets: ["MountMateCore"]),
         .executable(name: "MountMate", targets: ["MountMate"]),

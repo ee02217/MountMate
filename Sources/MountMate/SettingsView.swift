@@ -273,50 +273,52 @@ struct GeneralPane: View {
 
     var body: some View {
         Form {
-            Toggle("Launch MountMate at login", isOn: $launchAtLogin)
-                .onChange(of: launchAtLogin) { _, wanted in
-                    do {
-                        // Reports the real failure rather than silently reverting:
-                        // this needs a properly located, stably signed app, which a
-                        // development bundle is not (spec §6, §7).
-                        if wanted {
-                            try SMAppService.mainApp.register()
-                        } else {
-                            try SMAppService.mainApp.unregister()
+            Section {
+                Toggle("Launch MountMate at login", isOn: $launchAtLogin)
+                    .onChange(of: launchAtLogin) { _, wanted in
+                        do {
+                            // Reports the real failure rather than silently reverting:
+                            // this needs a properly located, stably signed app, which a
+                            // development bundle is not (spec §6, §7).
+                            if wanted {
+                                try SMAppService.mainApp.register()
+                            } else {
+                                try SMAppService.mainApp.unregister()
+                            }
+                            error = nil
+                        } catch {
+                            self.error = "\(error.localizedDescription) — this usually needs the installed, signed app."
+                            launchAtLogin = SMAppService.mainApp.status == .enabled
                         }
-                        error = nil
-                    } catch {
-                        self.error = "\(error.localizedDescription) — this usually needs the installed, signed app."
-                        launchAtLogin = SMAppService.mainApp.status == .enabled
                     }
+                if let error {
+                    Text(error).font(.caption).foregroundStyle(.secondary)
                 }
-            if let error {
-                Text(error).font(.caption).foregroundStyle(.secondary)
             }
 
-            Divider()
+            Section {
+                Stepper(
+                    "Check every \(Int(intervalMinutes)) min",
+                    value: $intervalMinutes, in: 1...60
+                )
+                .onChange(of: intervalMinutes) { _, minutes in
+                    Task { await model.preferences.setHealthCheckInterval(.seconds(Int(minutes) * 60)) }
+                }
 
-            Stepper(
-                "Check every \(Int(intervalMinutes)) min",
-                value: $intervalMinutes, in: 1...60
-            )
-            .onChange(of: intervalMinutes) { _, minutes in
-                Task { await model.preferences.setHealthCheckInterval(.seconds(Int(minutes) * 60)) }
-            }
-
-            Toggle("Notify when a share fails", isOn: $notifyOnFailure)
-                .onChange(of: notifyOnFailure) { _, enabled in
-                    Task {
-                        await model.preferences.setNotifyOnFailure(enabled)
-                        // Ask only when switching on, and only because someone
-                        // clicked: never from a background sweep.
-                        if enabled { _ = await UserNotificationNotifier.requestAuthorization() }
+                Toggle("Notify when a share fails", isOn: $notifyOnFailure)
+                    .onChange(of: notifyOnFailure) { _, enabled in
+                        Task {
+                            await model.preferences.setNotifyOnFailure(enabled)
+                            // Ask only when switching on, and only because someone
+                            // clicked: never from a background sweep.
+                            if enabled { _ = await UserNotificationNotifier.requestAuthorization() }
+                        }
                     }
-                }
-            Toggle("Notify when it recovers", isOn: $notifyOnRecovery)
-                .onChange(of: notifyOnRecovery) { _, enabled in
-                    Task { await model.preferences.setNotifyOnRecovery(enabled) }
-                }
+                Toggle("Notify when it recovers", isOn: $notifyOnRecovery)
+                    .onChange(of: notifyOnRecovery) { _, enabled in
+                        Task { await model.preferences.setNotifyOnRecovery(enabled) }
+                    }
+            }
         }
         .formStyle(.grouped)
         .padding()

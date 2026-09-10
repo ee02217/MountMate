@@ -1,0 +1,126 @@
+import Foundation
+
+/// Where the parts finally meet.
+///
+/// Milestones 1-4 deliberately wired nothing together: the engine takes a password
+/// closure, the coordinator takes an endpoints closure, and the stores had no
+/// consumer. This is the composition root that fills those in — and the only place
+/// `enabled` is changed, so the persisted flag and the mount action cannot drift
+/// apart.
+public actor AppController {
+    private let endpointStore: any EndpointStore
+    private let credentialStore: any CredentialStore
+    private let engine: MountEngine
+    private let coordinator: MountCoordinator
+
+    /// The most recent load, including what it skipped or quarantined. 5a shows none
+    /// of it; 5b and milestone 6 do.
+    public private(set) var lastLoad: EndpointLoad = .empty
+
+    /// The cached endpoint list the coordinator reads through its closure. Held in a
+    /// locked box because that closure is `@Sendable` and called from the
+    /// coordinator's actor, not this one.
+    private let cache = EndpointCache()
+
+    /// `service` and `inspector` are injectable and default to the real ones.
+    ///
+    /// This is not a convenience. A test that constructs the real pair will happily
+    /// match a share this machine actually has mounted and unmount it — the default
+    /// test endpoint's `mountFromIdentifier` is an ordinary NAS address, and the
+    /// developer's own NAS is exactly the kind of thing mounted at that address.
+    /// Tests must pass fakes.
+    public init(
+        endpointStore: any EndpointStore,
+        credentialStore: any CredentialStore,
+        sources: [any TriggerSource],
+        scheduler: any Scheduler = SystemScheduler(),
+        service: any MountService = NetFSMountService(),
+        inspector: any MountInspector = SystemMountInspector()
+    ) {
+        self.endpointStore = endpointStore
+        self.credentialStore = credentialStore
+
+        let cache = self.cache
+        let credentials = credentialStore
+        self.engine = MountEngine(
+            service: service,
+            inspector: inspector,
+            passwordProvider: { endpoint in
+                await credentials.password(for: endpoint)
+            }
+        )
+        self.coordinator = MountCoordinator(
+            engine: engine,
+            endpointsProvider: { cache.endpoints() },
+            sources: sources,
+            scheduler: scheduler
+        )
+    }
+
+    public var statuses: AsyncStream<[EndpointStatus]> {
+        get async { await coordinator.statuses }
+    }
+
+    public func start() async {
+        await reload()
+        await coordinator.start()
+    }
+
+    public func stop() async {
+        await coordinator.stop()
+    }
+
+    /// Mounted becomes unmounted-and-disabled; disabled becomes enabled-and-mounted.
+    ///
+    /// Spec §8: a bare unmount would be undone by the next backstop sweep, so the
+    /// disable is what makes it hold.
+    public func toggle(_ id: UUID) async throws {
+        guard var endpoint = cache.endpoints().first(where: { $0.id == id }) else { return }
+
+        if endpoint.enabled {
+            // Unmount first: once it is disabled, `ensureMounted` would refuse to act
+            // on it, and the engine's own unmount is the only thing that keeps its
+            // state honest.
+            try await engine.unmount(endpoint)
+            endpoint.enabled = false
+        } else {
+            endpoint.enabled = true
+        }
+
+        var endpoints = cache.endpoints()
+        guard let index = endpoints.firstIndex(where: { $0.id == id }) else { return }
+        endpoints[index] = endpoint
+        cache.set(endpoints)
+        try await endpointStore.save(endpoints)
+
+        await coordinator.handle(.userRequested(id))
+    }
+
+    private func reload() async {
+        guard let load = try? await endpointStore.load() else { return }
+        lastLoad = load
+        cache.set(load.endpoints)
+    }
+}
+
+/// A `Sendable` box for the endpoint list.
+///
+/// The coordinator's `endpointsProvider` is a `@Sendable` closure invoked from the
+/// coordinator's actor; it cannot reach into `AppController`'s isolation without
+/// deadlocking on a toggle that is itself awaiting the coordinator.
+final class EndpointCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: [ShareEndpoint] = []
+
+    func endpoints() -> [ShareEndpoint] {
+        lock.lock()
+        defer { lock.unlock() }
+        return stored
+    }
+
+    func set(_ endpoints: [ShareEndpoint]) {
+        lock.lock()
+        defer { lock.unlock() }
+        stored = endpoints
+    }
+}

@@ -42,3 +42,74 @@ import Foundation
     #expect(await service.unmountCalls.isEmpty)
     #expect(await engine.state(for: endpoint.id) == .idle)
 }
+
+@Test func togglingAMountedEndpointUnmountsAndDisablesIt() async throws {
+    let endpoint = try makeStoreEndpoint()
+    let endpointStore = InMemoryEndpointStore(endpoints: [endpoint])
+    let credentials = InMemoryCredentialStore()
+    try await credentials.setPassword("hunter2", for: endpoint)
+
+    let controller = AppController(
+        endpointStore: endpointStore,
+        credentialStore: credentials,
+        sources: [],
+        scheduler: FakeScheduler(limit: 0),
+        service: FakeMountService(),
+        inspector: FakeMountInspector()
+    )
+    await controller.start()
+
+    try await controller.toggle(endpoint.id)
+
+    // Persisted, not just held in memory: the whole point is that it stays unmounted.
+    let reloaded = try await endpointStore.load()
+    #expect(reloaded.endpoints.first?.enabled == false)
+
+    await controller.stop()
+}
+
+@Test func togglingADisabledEndpointEnablesItAndMountsIt() async throws {
+    var mutable = try makeStoreEndpoint()
+    mutable.enabled = false
+    let endpoint = mutable
+    let endpointStore = InMemoryEndpointStore(endpoints: [endpoint])
+    let credentials = InMemoryCredentialStore()
+    try await credentials.setPassword("hunter2", for: endpoint)
+
+    let controller = AppController(
+        endpointStore: endpointStore,
+        credentialStore: credentials,
+        sources: [],
+        scheduler: FakeScheduler(limit: 0),
+        service: FakeMountService(),
+        inspector: FakeMountInspector()
+    )
+    await controller.start()
+
+    try await controller.toggle(endpoint.id)
+
+    let reloaded = try await endpointStore.load()
+    #expect(reloaded.endpoints.first?.enabled == true)
+
+    await controller.stop()
+}
+
+@Test func theControllerKeepsWhatTheLoadSkipped() async throws {
+    let endpointStore = InMemoryEndpointStore(endpoints: [try makeStoreEndpoint()])
+    let controller = AppController(
+        endpointStore: endpointStore,
+        credentialStore: InMemoryCredentialStore(),
+        sources: [],
+        scheduler: FakeScheduler(limit: 0),
+        service: FakeMountService(),
+        inspector: FakeMountInspector()
+    )
+    await controller.start()
+
+    // 5a shows none of this, but discarding it would make 5b and milestone 6 unable
+    // to report a config problem that already happened.
+    #expect(await controller.lastLoad.skipped.isEmpty)
+    #expect(await controller.lastLoad.endpoints.count == 1)
+
+    await controller.stop()
+}

@@ -70,13 +70,20 @@ struct SharesPane: View {
                 .padding(.horizontal, 6)
                 .padding(.vertical, 4)
                 .overlay(alignment: .top) { Divider() }
-                // The save bar's .safeAreaInset(edge: .bottom) is attached to the
-                // whole HSplitView, so it insets both panes — but a plain HStack
-                // doesn't consume safe area the way List/Form do, so it was just
-                // painted over by the glass bar. safeAreaPadding(.bottom) pulls the
-                // current ambient bottom inset in as real padding so this bar clears
-                // it, whatever the glass bar's height happens to be.
-                .safeAreaPadding(.bottom)
+                // safeAreaPadding(.bottom) was tried first: it reads the ambient
+                // bottom safe-area inset from the environment and adds that much
+                // real padding. It read as zero here and cleared nothing, because
+                // HSplitView hosts each of its panes in its own NSHostingView —
+                // the safeAreaInset attached to the HSplitView itself insets the
+                // split view's own content area, but that inset doesn't cross into
+                // a child pane's separately-hosted SwiftUI environment. So there is
+                // no ambient inset for safeAreaPadding to pick up down here.
+                // Fall back to a fixed bottom padding sized to clear the glass bar
+                // outright: the bar is its own HStack padding (~32-40pt) plus a
+                // .glassEffect capsule with further internal padding plus the
+                // safeAreaInset's own .padding(.bottom, 8), roughly 60-70pt total.
+                // 76pt clears that with margin so the buttons are never covered.
+                .padding(.bottom, 76)
             }
             // A floor with no ceiling let the List consume the HSplitView: with
             // the sidebar finally populated (see above), it claimed ~710pt of a

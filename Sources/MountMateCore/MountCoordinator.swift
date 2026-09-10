@@ -15,6 +15,9 @@ public actor MountCoordinator {
     /// trigger arriving mid-ladder reschedules rather than stacking a second timer.
     private var retryTasks: [UUID: Task<Void, Never>] = [:]
 
+    /// The task consuming every source. `nil` until `start()`.
+    private var consumption: Task<Void, Never>?
+
     public init(
         engine: MountEngine,
         endpointsProvider: @escaping @Sendable () async -> [ShareEndpoint],
@@ -49,8 +52,35 @@ public actor MountCoordinator {
         }
     }
 
-    /// Cancels every pending retry. Safe to call more than once.
+    /// Emits `.launch`, then follows every source until `stop()`.
+    ///
+    /// Idempotent: calling it twice does not start a second consumer.
+    public func start() {
+        guard consumption == nil else { return }
+
+        let sources = self.sources
+        consumption = Task { [weak self] in
+            await self?.handle(.launch)
+
+            await withTaskGroup(of: Void.self) { group in
+                for source in sources {
+                    // Each child closure takes its own weak capture. Reaching through
+                    // the outer `self?` here instead would capture a mutable var
+                    // shared with the enclosing task, which Swift 6 rejects outright.
+                    group.addTask { [weak self] in
+                        for await event in source.events {
+                            await self?.handle(event)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Stops consuming and cancels every pending retry. Safe to call more than once.
     public func stop() {
+        consumption?.cancel()
+        consumption = nil
         for task in retryTasks.values { task.cancel() }
         retryTasks.removeAll()
     }

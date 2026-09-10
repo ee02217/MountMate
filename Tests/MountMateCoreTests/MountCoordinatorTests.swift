@@ -193,3 +193,58 @@ private func pollUntil(
 
     await coordinator.stop()
 }
+
+@Test func startEmitsLaunchAndThenFollowsItsSources() async throws {
+    let service = FakeMountService()
+    let inspector = CountingMountInspector()
+    let engine = makeEngine(service: service, inspector: inspector)
+    let endpoint = try makeEndpoint()
+    let source = FakeTriggerSource()
+
+    let coordinator = MountCoordinator(
+        engine: engine,
+        endpointsProvider: { [endpoint] },
+        sources: [source],
+        scheduler: FakeScheduler(limit: 0)
+    )
+    await coordinator.start()
+
+    // `.launch` alone mounts it once.
+    try await pollUntil { await service.mountCalls.count == 1 }
+
+    // Already mounted and responsive, so a later event re-probes instead of remounting.
+    await inspector.setVolumes([
+        MountedVolume(from: endpoint.mountFromIdentifier, on: "/Volumes/Fake")
+    ])
+    await inspector.setResponsive(["/Volumes/Fake"])
+    source.yield(.backstop)
+
+    try await pollUntil { await inspector.responsiveChecks >= 1 }
+    #expect(await service.mountCalls.count == 1)
+
+    await coordinator.stop()
+}
+
+@Test func stopEndsConsumption() async throws {
+    let service = FakeMountService()
+    let inspector = CountingMountInspector()
+    let engine = makeEngine(service: service, inspector: inspector)
+    let endpoint = try makeEndpoint()
+    let source = FakeTriggerSource()
+
+    let coordinator = MountCoordinator(
+        engine: engine,
+        endpointsProvider: { [endpoint] },
+        sources: [source],
+        scheduler: FakeScheduler(limit: 0)
+    )
+    await coordinator.start()
+    try await pollUntil { await service.mountCalls.count == 1 }
+
+    await coordinator.stop()
+    source.yield(.backstop)
+
+    // Nothing consumes the event now, so the count stays where it was.
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(await service.mountCalls.count == 1)
+}

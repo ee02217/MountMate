@@ -24,6 +24,25 @@ final class FakeTriggerSource: TriggerSource, @unchecked Sendable {
 /// Records every requested duration, then returns at once so the retry it guards runs
 /// immediately. After `limit` sleeps it parks forever instead: without that bound a
 /// permanently-failing endpoint would spin the retry ladder as fast as the CPU allows.
+/// A mount table that also counts liveness probes, so a test can tell a re-probe
+/// apart from a remount. `FakeMountInspector` is left untouched: milestone 1-2's
+/// fakes and their tests are not this milestone's to change.
+actor CountingMountInspector: MountInspector {
+    private var volumes: [MountedVolume] = []
+    private var responsive: Set<String> = []
+    private(set) var responsiveChecks = 0
+
+    func setVolumes(_ volumes: [MountedVolume]) { self.volumes = volumes }
+    func setResponsive(_ paths: Set<String>) { self.responsive = paths }
+
+    func mountedVolumes() async -> [MountedVolume] { volumes }
+
+    func isResponsive(path: String) async -> Bool {
+        responsiveChecks += 1
+        return responsive.contains(path)
+    }
+}
+
 actor FakeScheduler: Scheduler {
     private(set) var requested: [Duration] = []
     private let limit: Int

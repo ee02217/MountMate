@@ -14,7 +14,6 @@ struct SettingsView: View {
             DiagnosticsPane(model: model)
                 .tabItem { Label("Diagnostics", systemImage: "stethoscope") }
         }
-        .frame(width: 520, height: 380)
     }
 }
 
@@ -81,16 +80,23 @@ struct SharesPane: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            HStack {
-                if let status { Text(status).font(.caption) }
-                Spacer()
-                Button("Revert") {
-                    Task { drafts = await model.settings.loadDrafts() }
+            GlassEffectContainer(spacing: 12) {
+                HStack {
+                    if let status { Text(status).font(.caption) }
+                    Spacer()
+                    Button("Revert") {
+                        Task { drafts = await model.settings.loadDrafts() }
+                    }
+                    .buttonStyle(.glass)
+                    Button("Save") { save() }
+                        .buttonStyle(.glassProminent)
+                        .keyboardShortcut(.defaultAction)
                 }
-                Button("Save") { save() }
-                    .keyboardShortcut(.defaultAction)
+                .padding()
+                .glassEffect(.regular, in: .rect(cornerRadius: 16))
             }
-            .padding()
+            .padding(.horizontal)
+            .padding(.bottom, 8)
         }
         .task { drafts = await model.settings.loadDrafts() }
     }

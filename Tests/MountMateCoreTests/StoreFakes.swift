@@ -43,6 +43,31 @@ actor InMemoryEndpointStore: EndpointStore {
     func save(_ endpoints: [ShareEndpoint]) async throws { self.endpoints = endpoints }
 }
 
+/// Preferences with nothing behind them.
+actor InMemoryPreferences: PreferencesStore {
+    private var interval: Duration
+    private var failure: Bool
+    private var recovery: Bool
+
+    init(
+        interval: Duration = .seconds(300),
+        notifyOnFailure: Bool = true,
+        notifyOnRecovery: Bool = true
+    ) {
+        self.interval = interval
+        self.failure = notifyOnFailure
+        self.recovery = notifyOnRecovery
+    }
+
+    var healthCheckInterval: Duration { interval }
+    var notifyOnFailure: Bool { failure }
+    var notifyOnRecovery: Bool { recovery }
+
+    func setHealthCheckInterval(_ interval: Duration) { self.interval = interval }
+    func setNotifyOnFailure(_ enabled: Bool) { failure = enabled }
+    func setNotifyOnRecovery(_ enabled: Bool) { recovery = enabled }
+}
+
 /// An activity log with no file behind it.
 actor InMemoryActivityLog: ActivityLog {
     private(set) var entries: [ActivityEntry] = []

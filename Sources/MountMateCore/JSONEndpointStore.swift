@@ -1,5 +1,23 @@
 import Foundation
 
+/// One array element, decoded without throwing.
+///
+/// This wrapper exists for one reason: a throwing `decode` inside an unkeyed
+/// container does not advance the container's index, so the obvious
+/// `while !isAtEnd { try? decode() }` loop never terminates. Capturing the error
+/// inside `init(from:)` guarantees the element is always consumed.
+private struct DecodedEndpoint: Decodable {
+    let result: Result<ShareEndpoint, any Error>
+
+    init(from decoder: any Decoder) throws {
+        do {
+            result = .success(try ShareEndpoint(from: decoder))
+        } catch {
+            result = .failure(error)
+        }
+    }
+}
+
 /// The endpoint list, as a JSON file.
 ///
 /// Deliberately not `UserDefaults` (spec §5.5): a file is inspectable, diffable,
@@ -25,8 +43,23 @@ public struct JSONEndpointStore: EndpointStore {
             // No file is a first run, not a failure.
             return .empty
         }
-        let decoded = try JSONDecoder().decode([ShareEndpoint].self, from: data)
-        return EndpointLoad(endpoints: decoded)
+        let decoded = try JSONDecoder().decode([DecodedEndpoint].self, from: data)
+
+        var endpoints: [ShareEndpoint] = []
+        var skipped: [SkippedEndpoint] = []
+        for (index, element) in decoded.enumerated() {
+            switch element.result {
+            case .success(let endpoint):
+                endpoints.append(endpoint)
+            case .failure(let error):
+                // `ShareEndpointError` has a `description` worth showing a person;
+                // a decoding error's does not, but it is still better than nothing.
+                let reason = (error as? ShareEndpointError)?.description
+                    ?? String(describing: error)
+                skipped.append(SkippedEndpoint(index: index, reason: reason))
+            }
+        }
+        return EndpointLoad(endpoints: endpoints, skipped: skipped)
     }
 
     public func save(_ endpoints: [ShareEndpoint]) async throws {

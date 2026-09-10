@@ -27,3 +27,15 @@ actor FakeMountService: MountService {
         unmountCalls.append(path)
     }
 }
+
+/// A settable mount table.
+actor FakeMountInspector: MountInspector {
+    private var volumes: [MountedVolume] = []
+    private var responsive: Set<String> = []
+
+    func setVolumes(_ volumes: [MountedVolume]) { self.volumes = volumes }
+    func setResponsive(_ paths: Set<String>) { self.responsive = paths }
+
+    func mountedVolumes() async -> [MountedVolume] { volumes }
+    func isResponsive(path: String) async -> Bool { responsive.contains(path) }
+}

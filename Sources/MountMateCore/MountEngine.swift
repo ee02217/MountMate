@@ -187,6 +187,20 @@ public actor MountEngine {
             }
         }
 
+        // Before the Keychain, not after. A blocked mountpoint is a certainty rather
+        // than a guess, so there is no reason to reach for the credential (and, for a
+        // locked Keychain, the authorization prompt behind it) on an attempt that
+        // cannot succeed.
+        let blockage = await obstruction(for: endpoint)
+        if blockage != .clear {
+            fail(endpoint, with: MountFailure(
+                reason: .mountpointOccupied,
+                obstruction: blockage,
+                path: ExpectedMountpoint.path(for: endpoint)
+            ))
+            return
+        }
+
         guard let password = await passwordProvider(endpoint) else {
             // Counts as an attempt on purpose: without the backoff growing, a trigger
             // layer facing a locked or empty Keychain would hot-loop the credential
@@ -230,6 +244,25 @@ public actor MountEngine {
         } catch {
             fail(endpoint, with: MountFailure(reason: .unknown))
         }
+    }
+
+    /// What, if anything, is sitting on this endpoint's expected mountpoint.
+    ///
+    /// The mount table is consulted first: it is already in hand, costs no syscall,
+    /// and cannot block. The filesystem is asked only when the table has no answer,
+    /// which is what keeps this off any path that could be a wedged mount.
+    private func obstruction(for endpoint: ShareEndpoint) async -> MountpointObstruction {
+        let path = ExpectedMountpoint.path(for: endpoint)
+        if let fromTable = MountpointObstruction.fromMountTable(
+            expectedPath: path,
+            volumes: await inspector.mountedVolumes(),
+            ownIdentifier: endpoint.mountFromIdentifier
+        ) {
+            return fromTable
+        }
+        return MountpointObstruction.fromDirectory(
+            await inspector.directoryState(at: path)
+        )
     }
 
     private func mounts(for endpoint: ShareEndpoint) async -> EndpointMounts.Partition {

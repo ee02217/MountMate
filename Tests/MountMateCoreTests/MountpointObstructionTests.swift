@@ -5,7 +5,8 @@ import Foundation
 @Test func aVolumeMountedAtTheExpectedPathObstructsIt() {
     let obstruction = MountpointObstruction.fromMountTable(
         expectedPath: "/Volumes/Multimedia",
-        volumes: [MountedVolume(from: "//other@host/Thing", on: "/Volumes/Multimedia")]
+        volumes: [MountedVolume(from: "//other@host/Thing", on: "/Volumes/Multimedia")],
+        ownIdentifier: "//smbshare@host/Multimedia"
     )
     #expect(obstruction == .otherVolume(from: "//other@host/Thing"))
 }
@@ -14,7 +15,8 @@ import Foundation
     // The mount table cannot decide; the caller must look at the filesystem.
     let obstruction = MountpointObstruction.fromMountTable(
         expectedPath: "/Volumes/Multimedia",
-        volumes: [MountedVolume(from: "//other@host/Thing", on: "/Volumes/Thing")]
+        volumes: [MountedVolume(from: "//other@host/Thing", on: "/Volumes/Thing")],
+        ownIdentifier: "//smbshare@host/Multimedia"
     )
     #expect(obstruction == nil)
 }
@@ -74,4 +76,18 @@ import Foundation
     let failure = MountFailure(reason: .mountpointOccupied)
     #expect(failure.remedy == MountFailureReason.mountpointOccupied.remedy)
     #expect(MountFailure(reason: .hostUnreachable).remedy == nil)
+}
+
+@Test func ourOwnMountAtTheExpectedPathIsNotAnObstruction() {
+    // Reached after the engine force-unmounts a stale mount of its own: the mount
+    // table can still list it for a moment. Calling that an obstruction would tell
+    // the user to eject the very share they are trying to mount — and falling
+    // through to the filesystem instead would `stat` a path that may still be a
+    // wedged mount, which is the blocking-call hazard the ordering exists to avoid.
+    let obstruction = MountpointObstruction.fromMountTable(
+        expectedPath: "/Volumes/Multimedia",
+        volumes: [MountedVolume(from: "//smbshare@host/Multimedia", on: "/Volumes/Multimedia")],
+        ownIdentifier: "//smbshare@host/Multimedia"
+    )
+    #expect(obstruction == .clear)
 }

@@ -421,3 +421,76 @@ private struct HangingUnmountService: MountService {
 
     #expect(await engine.state(for: endpoint.id) == .mounted(path: "/Volumes/Multimedia"))
 }
+
+// MARK: - Diagnosing a blocked mountpoint
+
+@Test func anObstructedMountpointIsReportedWithoutAttemptingAMount() async throws {
+    // NetFS does not fail on a pre-existing directory — it silently picks
+    // `<name>-1`. Mounting in order to find that out creates the very stray this
+    // milestone exists to prevent, then has to undo it.
+    let service = FakeMountService()
+    let inspector = FakeMountInspector()
+    let endpoint = try makeEndpoint()
+    await inspector.setDirectoryStates(["/Volumes/Multimedia": .empty])
+    let engine = makeEngine(service: service, inspector: inspector)
+
+    await engine.ensureMounted(endpoint)
+
+    #expect(await service.mountCalls.isEmpty, "mounted into a path known to be blocked")
+    let state = await engine.state(for: endpoint.id)
+    guard case .failed(let failure) = state else {
+        Issue.record("expected a failure, got \(state)")
+        return
+    }
+    #expect(failure.reason == .mountpointOccupied)
+    #expect(failure.obstruction == .emptyDirectory)
+    #expect(failure.remedy?.contains("/Volumes/Multimedia") == true)
+}
+
+@Test func anotherVolumeAtTheExpectedPathIsReportedAsSuch() async throws {
+    let service = FakeMountService()
+    let inspector = FakeMountInspector()
+    let endpoint = try makeEndpoint()
+    await inspector.setVolumes([
+        MountedVolume(from: "//other@host/Thing", on: "/Volumes/Multimedia")
+    ])
+    let engine = makeEngine(service: service, inspector: inspector)
+
+    await engine.ensureMounted(endpoint)
+
+    guard case .failed(let failure) = await engine.state(for: endpoint.id) else {
+        Issue.record("expected a failure")
+        return
+    }
+    #expect(failure.obstruction == .otherVolume(from: "//other@host/Thing"))
+    #expect(await service.mountCalls.isEmpty)
+}
+
+@Test func theFilesystemIsNotConsultedWhenTheMountTableAlreadyDecided() async throws {
+    // Ordering is load-bearing: `directoryState` is the one call here that touches
+    // the disk, and a `stat` of a wedged mount is the blocking-call problem this
+    // package spent two commits removing.
+    let inspector = FakeMountInspector()
+    let endpoint = try makeEndpoint()
+    await inspector.setVolumes([
+        MountedVolume(from: "//other@host/Thing", on: "/Volumes/Multimedia")
+    ])
+    let engine = makeEngine(service: FakeMountService(), inspector: inspector)
+
+    await engine.ensureMounted(endpoint)
+
+    #expect(await inspector.directoryStateQueries == 0)
+}
+
+@Test func aClearMountpointIsMountedNormally() async throws {
+    let service = FakeMountService()
+    await service.setMountResult(.success("/Volumes/Multimedia"))
+    let inspector = FakeMountInspector()
+    let endpoint = try makeEndpoint()
+    await inspector.setDirectoryStates(["/Volumes/Multimedia": .absent])
+    let engine = makeEngine(service: service, inspector: inspector)
+
+    await engine.ensureMounted(endpoint)
+
+    #expect(await engine.state(for: endpoint.id) == .mounted(path: "/Volumes/Multimedia"))
+}

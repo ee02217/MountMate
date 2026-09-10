@@ -25,15 +25,20 @@ public enum MountpointObstruction: Sendable, Equatable {
     /// block. Returns `nil` when the table cannot decide and the filesystem must be
     /// asked — which is the only path that touches the disk.
     ///
-    /// Precondition: the caller has already established that the endpoint has no
-    /// mount of its own at `expectedPath` (see `EndpointMounts.partition`), so any
-    /// volume found here belongs to something else.
+    /// `ownIdentifier` is the endpoint's `mountFromIdentifier`. A mount of the
+    /// endpoint's *own* share at the expected path is `.clear`, not an obstruction:
+    /// the engine reaches this only just after force-unmounting a stale mount of its
+    /// own, when the table can still list it for a moment. Calling that an
+    /// obstruction would tell the user to eject the very share they are mounting, and
+    /// returning `nil` instead would send the caller to `stat` a path that may still
+    /// be a wedged mount — the blocking-call hazard this ordering exists to avoid.
     public static func fromMountTable(
-        expectedPath: String, volumes: [MountedVolume]
+        expectedPath: String, volumes: [MountedVolume], ownIdentifier: String
     ) -> MountpointObstruction? {
         guard let occupant = volumes.first(where: { $0.on == expectedPath }) else {
             return nil
         }
+        guard occupant.from != ownIdentifier else { return .clear }
         return .otherVolume(from: occupant.from)
     }
 

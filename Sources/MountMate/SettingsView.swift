@@ -26,6 +26,7 @@ struct SharesPane: View {
     let model: MenuModel
 
     @State private var drafts: [ShareDraft] = []
+    @State private var loaded = false
     @State private var selection: UUID?
     @State private var status: String?
     @State private var testResult: TestOutcome?
@@ -49,12 +50,15 @@ struct SharesPane: View {
                 .overlay {
                     // A blank grey rectangle here is indistinguishable from a bug —
                     // this happens for real when the login Keychain is still locked
-                    // when the pane first appears, so loadDrafts() returns empty and
-                    // there's nothing to explain why. Say what's going on and what to
-                    // do. Kept quiet and small (no ContentUnavailableView icon/hero
-                    // treatment) since this is a sidebar, not a hero panel, and
-                    // non-interactive so it never steals clicks meant for the list.
-                    if drafts.isEmpty {
+                    // when the pane first appears. loadDrafts() does not return
+                    // empty in that case — it blocks on the system password prompt —
+                    // so the list simply has nothing to show yet. Gate this on
+                    // `loaded` so the overlay only appears once loading has actually
+                    // finished; showing it during that block would claim there are no
+                    // shares when the truth is we just don't know yet. Kept quiet and
+                    // small (no ContentUnavailableView icon/hero treatment) since this
+                    // is a sidebar, not a hero panel.
+                    if loaded && drafts.isEmpty {
                         VStack(spacing: 4) {
                             Text("No shares")
                                 .foregroundStyle(.secondary)
@@ -64,7 +68,6 @@ struct SharesPane: View {
                         }
                         .multilineTextAlignment(.center)
                         .padding()
-                        .allowsHitTesting(false)
                     }
                 }
                 HStack(spacing: 2) {
@@ -169,9 +172,11 @@ struct SharesPane: View {
                         Task { drafts = await model.settings.loadDrafts() }
                     }
                     .buttonStyle(.glass)
+                    .disabled(!loaded)
                     Button("Save") { save() }
                         .buttonStyle(.glassProminent)
                         .keyboardShortcut(.defaultAction)
+                        .disabled(!loaded)
                 }
                 .padding()
                 .glassEffect(.regular, in: .rect(cornerRadius: 16))
@@ -179,7 +184,10 @@ struct SharesPane: View {
             .padding(.horizontal)
             .padding(.bottom, 8)
         }
-        .task { drafts = await model.settings.loadDrafts() }
+        .task {
+            drafts = await model.settings.loadDrafts()
+            loaded = true
+        }
     }
 
     private func save() {

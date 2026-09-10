@@ -80,6 +80,21 @@ echo
 # No -d, so this is the user's trust domain and needs no administrator rights.
 security add-trusted-cert -r trustRoot -p codeSign -k "$KEYCHAIN" "$WORK/cert.pem"
 
+# --- warn about duplicates ------------------------------------------------------
+# `add-trusted-cert` adds the certificate file to the keychain as well as trusting
+# it, so trusting an already-imported certificate can leave a second, keyless copy.
+# Harmless — install.sh signs by SHA-1 hash, and only the copy with a private key
+# appears as an identity — but worth saying out loud rather than leaving to be
+# discovered as "ambiguous (matches ... and ...)".
+CERT_COUNT="$(security find-certificate -a -c "$IDENTITY" -Z 2>/dev/null | grep -c 'SHA-1 hash' || true)"
+if [ "${CERT_COUNT:-0}" -gt 1 ]; then
+    echo
+    echo "Note: $CERT_COUNT certificates named \"$IDENTITY\" are in the keychain."
+    echo "Only the one holding a private key is used, and install.sh selects it by"
+    echo "hash, so this is safe to ignore. To tidy up, delete the extras in Keychain"
+    echo "Access — the one to keep shows a private key beneath it when expanded."
+fi
+
 # --- verify --------------------------------------------------------------------
 if ! security find-identity -v -p codesigning | grep -qF "$IDENTITY"; then
     cat >&2 <<MESSAGE

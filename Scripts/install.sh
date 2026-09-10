@@ -18,7 +18,17 @@ STAGING="$ROOT/.build/install/MountMate.app"
 DESTINATION="/Applications/MountMate.app"
 
 # --- 1. the identity must exist before anything else happens -------------------
-if ! security find-identity -v -p codesigning | grep -qF "$IDENTITY"; then
+# Resolved to its SHA-1 hash rather than used by name. Two certificates can share a
+# common name — `security add-trusted-cert` can itself add a keyless copy — and
+# codesign then refuses with "ambiguous (matches ... and ...)". Only a certificate
+# with a private key appears in `find-identity -v`, so taking the first match here
+# picks the usable one.
+IDENTITY_HASH="$(
+    security find-identity -v -p codesigning 2>/dev/null \
+        | grep -F "\"$IDENTITY\"" | head -1 | awk '{print $2}'
+)"
+
+if [ -z "$IDENTITY_HASH" ]; then
     cat >&2 <<MESSAGE
 No code-signing identity named "$IDENTITY" was found.
 
@@ -76,7 +86,7 @@ cp "$BINARY" "$STAGING/Contents/MacOS/MountMate"
 
 # --- 4. sign -------------------------------------------------------------------
 codesign --force --options runtime --timestamp=none \
-    --sign "$IDENTITY" "$STAGING"
+    --sign "$IDENTITY_HASH" "$STAGING"
 
 # Verify before installing. An unsigned or badly signed bundle would fail later
 # inside SMAppService with an error that says nothing useful, and this script exists
@@ -95,7 +105,7 @@ cp -R "$STAGING" "$DESTINATION"
 
 cat <<DONE
 
-Installed $DESTINATION  (version $VERSION, signed as "$IDENTITY")
+Installed $DESTINATION  (version $VERSION, signed as "$IDENTITY" / $IDENTITY_HASH)
 
 Next:
   open "$DESTINATION"

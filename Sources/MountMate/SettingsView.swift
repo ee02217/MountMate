@@ -31,7 +31,7 @@ struct SharesPane: View {
     @State private var testResult: TestOutcome?
 
     var body: some View {
-        NavigationSplitView {
+        HSplitView {
             VStack(spacing: 0) {
                 List(selection: $selection) {
                     ForEach(drafts) { draft in
@@ -65,8 +65,8 @@ struct SharesPane: View {
                 .padding(.vertical, 4)
                 .overlay(alignment: .top) { Divider() }
             }
-            .navigationSplitViewColumnWidth(min: 160, ideal: 200)
-        } detail: {
+            .frame(minWidth: 160)
+
             if let index = drafts.firstIndex(where: { $0.id == selection }) {
                 Form {
                     TextField("Name", text: $drafts[index].displayName)

@@ -43,7 +43,16 @@ public struct JSONEndpointStore: EndpointStore {
             // No file is a first run, not a failure.
             return .empty
         }
-        let decoded = try JSONDecoder().decode([DecodedEndpoint].self, from: data)
+        let decoded: [DecodedEndpoint]
+        do {
+            decoded = try JSONDecoder().decode([DecodedEndpoint].self, from: data)
+        } catch {
+            // Not parseable as an array at all. Preserve it rather than destroy it:
+            // this is a person's configuration, and the reason spec §5.5 chose a file
+            // was that a person can read and repair one.
+            let quarantine = try quarantineFile()
+            return EndpointLoad(endpoints: [], quarantined: quarantine)
+        }
 
         var endpoints: [ShareEndpoint] = []
         var skipped: [SkippedEndpoint] = []
@@ -60,6 +69,19 @@ public struct JSONEndpointStore: EndpointStore {
             }
         }
         return EndpointLoad(endpoints: endpoints, skipped: skipped)
+    }
+
+    /// Moves the unparseable file aside and returns where it went.
+    ///
+    /// The timestamp keeps successive failures from overwriting each other, which
+    /// would defeat the point of preserving the first one.
+    private func quarantineFile() throws -> URL {
+        let stamp = ISO8601DateFormatter().string(from: Date())
+            .replacingOccurrences(of: ":", with: "-")
+        let destination = fileURL.deletingLastPathComponent()
+            .appendingPathComponent("endpoints.json.corrupt-\(stamp)")
+        try FileManager.default.moveItem(at: fileURL, to: destination)
+        return destination
     }
 
     public func save(_ endpoints: [ShareEndpoint]) async throws {

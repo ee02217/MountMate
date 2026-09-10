@@ -156,3 +156,24 @@ private func makeTempDirectory() throws -> URL {
     #expect(load.endpoints.map(\.displayName) == ["Backup"])
     #expect(load.skipped.map(\.index) == [0])
 }
+
+@Test func anUnparseableFileIsMovedAsideNotOverwritten() async throws {
+    let directory = try makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = JSONEndpointStore(directory: directory)
+
+    let garbage = "{ this is not json at all"
+    try Data(garbage.utf8).write(to: store.fileURL)
+
+    let load = try await store.load()
+
+    #expect(load.endpoints.isEmpty)
+    let quarantined = try #require(load.quarantined)
+
+    // The original content survives, untouched, somewhere findable.
+    let preserved = try String(contentsOf: quarantined, encoding: .utf8)
+    #expect(preserved == garbage)
+
+    // And the original path is now clear, so the app can write a fresh config.
+    #expect(!FileManager.default.fileExists(atPath: store.fileURL.path))
+}

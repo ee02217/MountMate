@@ -43,6 +43,13 @@ actor InMemoryEndpointStore: EndpointStore {
     func save(_ endpoints: [ShareEndpoint]) async throws { self.endpoints = endpoints }
 }
 
+/// A notifier that records instead of notifying.
+actor RecordingNotifier: Notifier {
+    private(set) var posted: [PendingNotification] = []
+
+    func post(_ notification: PendingNotification) async { posted.append(notification) }
+}
+
 /// Preferences with nothing behind them.
 actor InMemoryPreferences: PreferencesStore {
     private var interval: Duration

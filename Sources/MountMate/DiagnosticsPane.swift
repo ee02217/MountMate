@@ -138,8 +138,16 @@ struct ActivityRow: View {
         case .lifecycle: return "power"
         case .user: return "hand.tap"
         case .mount:
+            // Exact wording comes from TransitionLogger.describe and
+            // MountEngine's stray-detach log: idle, mounting, "mounted <path>",
+            // "not responding at <path>", "failed — <reason>", and
+            // "could not detach stray mount at <path>".
             if entry.message.hasPrefix("failed") { return "exclamationmark.circle.fill" }
             if entry.message.hasPrefix("mounted") { return "checkmark.circle.fill" }
+            if entry.message.hasPrefix("not responding") { return "exclamationmark.triangle.fill" }
+            if entry.message.hasPrefix("could not detach") { return "exclamationmark.triangle.fill" }
+            if entry.message.hasPrefix("mounting") { return "arrow.triangle.2.circlepath" }
+            if entry.message.hasPrefix("idle") { return "circle" }
             return "circle"
         }
     }
@@ -150,6 +158,8 @@ struct ActivityRow: View {
         case .mount:
             if entry.message.hasPrefix("failed") { return .red }
             if entry.message.hasPrefix("mounted") { return .green }
+            if entry.message.hasPrefix("not responding") { return .orange }
+            if entry.message.hasPrefix("could not detach") { return .orange }
             return .secondary
         }
     }

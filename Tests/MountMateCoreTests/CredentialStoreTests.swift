@@ -51,3 +51,43 @@ import Foundation
 
     #expect(attributes[kSecValueData as String] == nil)
 }
+
+@Test(.enabled(if: keychainIsAvailable))
+func theKeychainStoreRoundTripsAPassword() async throws {
+    let store = KeychainCredentialStore()
+    let endpoint = try makeStoreEndpoint(
+        name: "MountMateTest",
+        host: "mountmate-test.invalid"
+    )
+    // Leave no item behind even if an assertion fails partway.
+    try? await store.removePassword(for: endpoint)
+
+    try await store.setPassword("hunter2", for: endpoint)
+    #expect(await store.password(for: endpoint) == "hunter2")
+
+    // Setting again must update in place, not fail as a duplicate.
+    try await store.setPassword("hunter3", for: endpoint)
+    #expect(await store.password(for: endpoint) == "hunter3")
+
+    try await store.removePassword(for: endpoint)
+    #expect(await store.password(for: endpoint) == nil)
+}
+
+@Test(.enabled(if: keychainIsAvailable))
+func removingAnAbsentPasswordIsNotAnError() async throws {
+    let store = KeychainCredentialStore()
+    let endpoint = try makeStoreEndpoint(
+        name: "MountMateAbsent",
+        host: "mountmate-absent.invalid"
+    )
+
+    // errSecItemNotFound is the expected state, not a failure to report.
+    try await store.removePassword(for: endpoint)
+}
+
+@Test func theKeychainStoreReportsThePermissivePolicy() async {
+    // No Keychain access needed: the policy is a compile-time decision until
+    // milestone 7 provides a stable signing identity.
+    let store = KeychainCredentialStore()
+    #expect(await store.accessPolicy == .permissive)
+}

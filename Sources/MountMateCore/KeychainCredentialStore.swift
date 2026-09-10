@@ -30,3 +30,64 @@ enum KeychainQuery {
         }
     }
 }
+
+/// Passwords, in the login Keychain.
+///
+/// The password reaches `NetFSMountURLSync` as its `passwd` parameter and is never
+/// embedded in a URL, so it never appears in a process listing (spec §5.6).
+public struct KeychainCredentialStore: CredentialStore {
+    public init() {}
+
+    /// Permissive until milestone 7 provides a stable signing identity. See
+    /// `CredentialAccessPolicy` and spec §6 — this must be surfaced, never silent.
+    public var accessPolicy: CredentialAccessPolicy {
+        get async { .permissive }
+    }
+
+    public func password(for endpoint: ShareEndpoint) async -> String? {
+        var query = KeychainQuery.attributes(for: endpoint)
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        query[kSecReturnData as String] = true
+
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        guard status == errSecSuccess, let data = item as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    public func setPassword(_ password: String, for endpoint: ShareEndpoint) async throws {
+        let query = KeychainQuery.attributes(for: endpoint)
+        let secret = Data(password.utf8)
+
+        // Try update first: SecItemAdd on an existing item returns errSecDuplicateItem,
+        // and changing a password is at least as common as setting one.
+        let update = SecItemUpdate(
+            query as CFDictionary,
+            [kSecValueData as String: secret] as CFDictionary
+        )
+        if update == errSecSuccess { return }
+        guard update == errSecItemNotFound else {
+            throw CredentialStoreError.unexpectedStatus(update)
+        }
+
+        var insert = query
+        insert[kSecValueData as String] = secret
+        // Available after first unlock, and never synced to iCloud: this password is
+        // for one NAS on one LAN, and syncing it would widen the blast radius for no
+        // benefit.
+        insert[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+
+        let add = SecItemAdd(insert as CFDictionary, nil)
+        guard add == errSecSuccess else {
+            throw CredentialStoreError.unexpectedStatus(add)
+        }
+    }
+
+    public func removePassword(for endpoint: ShareEndpoint) async throws {
+        let status = SecItemDelete(KeychainQuery.attributes(for: endpoint) as CFDictionary)
+        // Absent is the desired end state, so "not found" is success.
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw CredentialStoreError.unexpectedStatus(status)
+        }
+    }
+}

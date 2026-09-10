@@ -16,11 +16,19 @@ struct DiagnosticsPane: View {
             if policy == .permissive {
                 // Spec §6 requires this to be visible, never silent — and §6.1
                 // requires it not to promise a fix that does not exist.
-                Label(
-                    "Passwords are readable by any process running as you — the same as a file in your home folder. macOS cannot restrict this further without a paid Apple developer account.",
-                    systemImage: "exclamationmark.triangle"
-                )
+                Label {
+                    Text("Passwords are readable by any process running as you — the same as a file in your home folder. macOS cannot restrict this further without a paid Apple developer account.")
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                }
                 .font(.callout)
+                .padding(12)
+                // Held to a readable measure. At full width this ran to about 110
+                // characters a line, and it is the most important text in the app.
+                .frame(maxWidth: 520, alignment: .leading)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
             }
 
             if !load.skipped.isEmpty {

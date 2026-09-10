@@ -3,31 +3,34 @@ import Security
 
 /// Builds the attribute dictionary identifying one endpoint's Keychain item.
 ///
-/// Keyed on server + account + protocol + path, which is the shape macOS itself uses
-/// for network shares (spec §5.6) — so the items read sensibly in Keychain Access
-/// rather than appearing as opaque blobs. Pure, so the keying rule is testable
-/// without a Keychain, which matters because the Keychain is unreachable from any
-/// process outside the user's GUI session.
+/// A **generic** password under MountMate's own service, not an internet password
+/// (spec §9.1). Internet passwords are keyed on server + account + protocol + path,
+/// which is the same space Finder and NetFS use — and macOS leaves `path` empty while
+/// this app filled it in, so MountMate's items were invisible to the system while its
+/// writes and deletes could still land on the system's. A working credential was lost
+/// that way, and every mount afterwards fell back to an authentication dialog.
+///
+/// The cost is accepted: MountMate cannot reuse a password already saved in Finder,
+/// so it must be entered once in Settings. In exchange it cannot damage one.
 enum KeychainQuery {
+    static let service = "com.sergio.mountmate"
+
     static func attributes(for endpoint: ShareEndpoint) -> [String: Any] {
         [
-            kSecClass as String: kSecClassInternetPassword as String,
-            kSecAttrServer as String: endpoint.url.host ?? "",
-            kSecAttrAccount as String: endpoint.username,
-            kSecAttrPath as String: endpoint.url.path
-                .trimmingCharacters(in: CharacterSet(charactersIn: "/")),
-            kSecAttrProtocol as String: protocolAttribute(for: endpoint) as String,
+            kSecClass as String: kSecClassGenericPassword as String,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account(for: endpoint),
         ]
     }
 
-    private static func protocolAttribute(for endpoint: ShareEndpoint) -> CFString {
-        // `ShareEndpoint` refuses every scheme but these two, so the default is
-        // unreachable today; it exists so adding a scheme there fails loudly here
-        // rather than silently filing items under the wrong protocol.
-        switch endpoint.url.scheme?.lowercased() {
-        case "afp": return kSecAttrProtocolAFP
-        default: return kSecAttrProtocolSMB
-        }
+    /// Identifies the share within MountMate's own namespace. Includes the scheme so
+    /// the same share reached over smb and afp are distinct entries.
+    static func account(for endpoint: ShareEndpoint) -> String {
+        let scheme = endpoint.url.scheme?.lowercased() ?? "smb"
+        let host = endpoint.url.host ?? ""
+        let share = endpoint.url.path
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return "\(scheme)://\(endpoint.username)@\(host)/\(share)"
     }
 }
 

@@ -20,27 +20,40 @@ import Foundation
     #expect(await store.accessPolicy == .permissive)
 }
 
-@Test func theQueryIsKeyedTheWayMacOSKeysTheseItems() throws {
+@Test func theQueryIsAGenericPasswordUnderMountMatesOwnService() throws {
     let endpoint = try makeStoreEndpoint(name: "Multimedia", host: "192.168.1.67")
     let attributes = KeychainQuery.attributes(for: endpoint)
 
-    #expect(attributes[kSecClass as String] as? String == kSecClassInternetPassword as String)
-    #expect(attributes[kSecAttrServer as String] as? String == "192.168.1.67")
-    #expect(attributes[kSecAttrAccount as String] as? String == "smbshare")
-    #expect(attributes[kSecAttrPath as String] as? String == "Multimedia")
-    #expect(attributes[kSecAttrProtocol as String] as? String == kSecAttrProtocolSMB as String)
+    // Generic, not internet: an internet password keyed on server+account+protocol
+    // collides with the credential Finder and NetFS rely on. MountMate lost one that
+    // way on 2026-09-10 (spec §9.1).
+    #expect(attributes[kSecClass as String] as? String == kSecClassGenericPassword as String)
+    #expect(attributes[kSecAttrService as String] as? String == "com.sergio.mountmate")
+
+    // The account still identifies the share unambiguously.
+    let account = try #require(attributes[kSecAttrAccount as String] as? String)
+    #expect(account.contains("192.168.1.67"))
+    #expect(account.contains("Multimedia"))
+    #expect(account.contains("smbshare"))
 }
 
-@Test func afpEndpointsGetTheAfpProtocolAttribute() throws {
-    let endpoint = try ShareEndpoint(
-        displayName: "Archive",
-        url: URL(string: "afp://192.168.1.67/Archive")!,
-        username: "smbshare",
-        mountPolicy: .volumes
-    )
+@Test func twoSharesOnOneServerGetDifferentAccounts() throws {
+    let first = try makeStoreEndpoint(name: "Multimedia", host: "192.168.1.67")
+    let second = try makeStoreEndpoint(name: "Backup", host: "192.168.1.67")
+
+    let a = KeychainQuery.attributes(for: first)[kSecAttrAccount as String] as? String
+    let b = KeychainQuery.attributes(for: second)[kSecAttrAccount as String] as? String
+    #expect(a != b)
+}
+
+@Test func theQueryNeverUsesTheInternetPasswordClass() throws {
+    let endpoint = try makeStoreEndpoint()
     let attributes = KeychainQuery.attributes(for: endpoint)
 
-    #expect(attributes[kSecAttrProtocol as String] as? String == kSecAttrProtocolAFP as String)
+    // The shape that caused the collision must not be reachable at all.
+    #expect(attributes[kSecClass as String] as? String != kSecClassInternetPassword as String)
+    #expect(attributes[kSecAttrServer as String] == nil)
+    #expect(attributes[kSecAttrPath as String] == nil)
 }
 
 /// The query must not carry the secret: the password is a separate parameter on the

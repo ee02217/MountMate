@@ -31,7 +31,7 @@ struct SharesPane: View {
     @State private var testResult: TestOutcome?
 
     var body: some View {
-        HSplitView {
+        NavigationSplitView {
             VStack(spacing: 0) {
                 List(selection: $selection) {
                     ForEach(drafts) { draft in
@@ -39,22 +39,34 @@ struct SharesPane: View {
                             .tag(draft.id)
                     }
                 }
-                HStack {
-                    Button("+") {
+                .listStyle(.sidebar)
+                HStack(spacing: 2) {
+                    Button {
                         drafts.append(ShareDraft())
                         selection = drafts.last?.id
+                    } label: {
+                        Image(systemName: "plus").frame(width: 24, height: 20)
                     }
-                    Button("−") {
+                    .help("Add a share")
+
+                    Button {
                         drafts.removeAll { $0.id == selection }
                         selection = drafts.first?.id
+                    } label: {
+                        Image(systemName: "minus").frame(width: 24, height: 20)
                     }
                     .disabled(selection == nil)
+                    .help("Remove the selected share")
+
                     Spacer()
                 }
-                .padding(6)
+                .buttonStyle(.borderless)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
+                .overlay(alignment: .top) { Divider() }
             }
-            .frame(minWidth: 160)
-
+            .navigationSplitViewColumnWidth(min: 160, ideal: 200)
+        } detail: {
             if let index = drafts.firstIndex(where: { $0.id == selection }) {
                 Form {
                     TextField("Name", text: $drafts[index].displayName)

@@ -41,6 +41,10 @@ actor CountingMountInspector: MountInspector {
         responsiveChecks += 1
         return responsive.contains(path)
     }
+
+    /// These tests are about trigger cadence, not mountpoints: nothing is ever in the
+    /// way, so every attempt reaches the mount it is counting.
+    func directoryState(at path: String) async -> DirectoryState { .absent }
 }
 
 actor FakeScheduler: Scheduler {

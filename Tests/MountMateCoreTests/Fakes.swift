@@ -53,6 +53,22 @@ actor FakeMountInspector: MountInspector {
 
     func mountedVolumes() async -> [MountedVolume] { volumes }
     func isResponsive(path: String) async -> Bool { responsive.contains(path) }
+
+    private var directoryStates: [String: DirectoryState] = [:]
+    /// How many times `directoryState(at:)` was asked. The obstruction check must
+    /// consult the mount table first and only reach the filesystem when the table
+    /// cannot decide, and an ordering claim is worth nothing unless something fails
+    /// when the order flips.
+    private(set) var directoryStateQueries = 0
+
+    func setDirectoryStates(_ states: [String: DirectoryState]) {
+        self.directoryStates = states
+    }
+
+    func directoryState(at path: String) async -> DirectoryState {
+        directoryStateQueries += 1
+        return directoryStates[path] ?? .absent
+    }
 }
 
 /// A liveness probe that blocks until released, and counts how many times it was

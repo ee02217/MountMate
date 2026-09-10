@@ -80,6 +80,22 @@ public struct SystemMountInspector: MountInspector {
         return answer
     }
 
+    /// Deliberately *not* routed through `runBlocking`, unlike every other filesystem
+    /// call in this package. `MountEngine` calls this only when the mount table says
+    /// nothing is mounted at `path`, which makes it a local `/Volumes` lookup on APFS
+    /// rather than a call that can park in the kernel. The TOCTOU window in which a
+    /// mount could appear between the table read and this call is accepted: the cost
+    /// if it ever happened is one stranded thread, against a timeout that has no
+    /// correct value to return.
+    public func directoryState(at path: String) async -> DirectoryState {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+              isDirectory.boolValue
+        else { return .absent }
+        let contents = try? FileManager.default.contentsOfDirectory(atPath: path)
+        return (contents?.isEmpty ?? true) ? .empty : .nonEmpty
+    }
+
     private func mountFromName(for path: String) async -> String? {
         await mountedVolumes().first { $0.on == path }?.from
     }

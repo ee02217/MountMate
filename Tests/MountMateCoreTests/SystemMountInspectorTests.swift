@@ -125,3 +125,44 @@ import Foundation
     let registry = WedgedPathRegistry()
     #expect(await registry.shouldShortCircuit(path: "/Volumes/M", currentFrom: nil) == false)
 }
+
+// MARK: - Directory state
+
+@Test func anAbsentPathHasNoDirectoryState() async {
+    let inspector = SystemMountInspector()
+    #expect(await inspector.directoryState(at: "/definitely/not/here/xyz") == .absent)
+}
+
+@Test func anEmptyDirectoryIsReportedEmpty() async throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("mountmate-empty-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let inspector = SystemMountInspector()
+    #expect(await inspector.directoryState(at: directory.path) == .empty)
+}
+
+@Test func aDirectoryWithContentIsReportedNonEmpty() async throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("mountmate-full-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    try Data("x".utf8).write(to: directory.appendingPathComponent("file.txt"))
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let inspector = SystemMountInspector()
+    #expect(await inspector.directoryState(at: directory.path) == .nonEmpty)
+}
+
+@Test func aFileWhereADirectoryWasExpectedReadsAsAbsent() async throws {
+    // NetFS will fail on this, and there is nothing this app can tell the user to do
+    // about it that it could not tell them about any other mount failure. Folding it
+    // into `.absent` keeps the obstruction vocabulary to cases with distinct remedies.
+    let file = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("mountmate-file-\(UUID().uuidString)")
+    try Data("x".utf8).write(to: file)
+    defer { try? FileManager.default.removeItem(at: file) }
+
+    let inspector = SystemMountInspector()
+    #expect(await inspector.directoryState(at: file.path) == .absent)
+}

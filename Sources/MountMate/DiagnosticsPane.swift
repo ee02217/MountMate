@@ -9,6 +9,7 @@ struct DiagnosticsPane: View {
     @State private var load: EndpointLoad = .empty
     @State private var policy: CredentialAccessPolicy = .permissive
     @State private var copied = false
+    @State private var resetCopied: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -39,6 +40,7 @@ struct DiagnosticsPane: View {
                 Text(entry.formatted())
                     .font(.system(.caption, design: .monospaced))
             }
+            .contentMargins(.bottom, 76, for: .scrollContent)
 
         }
         .padding()
@@ -78,5 +80,14 @@ struct DiagnosticsPane: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(report.text(), forType: .string)
         copied = true
+
+        // A control's label says what it does. Left alone, this one read "Copied"
+        // indefinitely — observed still saying it ten minutes after the click, which
+        // describes a past event rather than the action available now.
+        resetCopied?.cancel()
+        resetCopied = Task {
+            try? await Task.sleep(for: .seconds(2))
+            copied = false
+        }
     }
 }

@@ -51,6 +51,7 @@ public enum TransitionLogger {
         case .hostUnreachable: return "host unreachable"
         case .shareNotFound: return "share not found"
         case .mountpointBusy: return "mount point busy"
+        case .mountpointOccupied: return "mount point in use"
         case .timedOut: return "timed out"
         case .noCredential: return "no password saved"
         case .unknown: return "unknown error"

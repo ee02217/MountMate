@@ -95,6 +95,7 @@ public struct MenuPresentation: Sendable, Equatable {
         case .hostUnreachable: return "Host unreachable"
         case .shareNotFound: return "Share not found"
         case .mountpointBusy: return "Mount point busy"
+        case .mountpointOccupied: return "Mount point in use"
         case .timedOut: return "Timed out"
         case .noCredential: return "No password saved"
         case .unknown: return "Failed"

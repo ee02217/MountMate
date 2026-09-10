@@ -62,6 +62,16 @@ public struct DiagnosticsReport: Sendable {
             lines.append("Unreadable config preserved at: \(quarantined.path)")
         }
 
+        // Repeated here because the pane has room for the whole instruction, where a
+        // menu row only fits "Mount point in use". The matched string is exactly what
+        // `TransitionLogger` writes for `.mountpointOccupied`; change one, change both.
+        if entries.contains(where: { $0.message.contains("mount point in use") }),
+           let advice = MountFailureReason.mountpointOccupied.remedy {
+            lines.append("")
+            lines.append("How to fix the mount point problem:")
+            lines.append("  \(advice)")
+        }
+
         lines.append("")
         lines.append("Recent activity:")
         if entries.isEmpty {

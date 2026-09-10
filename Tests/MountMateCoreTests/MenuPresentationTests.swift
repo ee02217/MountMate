@@ -85,6 +85,26 @@ func makeStatus(
     #expect(row.actionTitle == "Mount")
 }
 
+@Test func anOccupiedMountpointSaysSoAndOffersARemedy() throws {
+    let presentation = MenuPresentation(statuses: [
+        makeStatus(name: "Multimedia", state: .failed(MountFailure(reason: .mountpointOccupied)))
+    ])
+    let row = try #require(presentation.rows.first)
+
+    #expect(row.dot == .failed)
+    #expect(row.subtitle?.contains("in use") == true)
+
+    // The remedy must exist somewhere a person can act on, not only a reason code.
+    let remedy = try #require(MountFailureReason.mountpointOccupied.remedy)
+    #expect(remedy.contains("rmdir") || remedy.contains("Eject"))
+}
+
+/// Every other reason has no remedy to offer, and must not invent one.
+@Test func ordinaryFailuresHaveNoRemedy() {
+    #expect(MountFailureReason.hostUnreachable.remedy == nil)
+    #expect(MountFailureReason.authenticationFailed.remedy == nil)
+}
+
 @Test func aFailedRowNamesTheReason() throws {
     let presentation = MenuPresentation(statuses: [
         makeStatus(name: "Backup", state: .failed(MountFailure(reason: .hostUnreachable)))

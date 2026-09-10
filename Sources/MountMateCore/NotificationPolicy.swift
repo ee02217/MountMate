@@ -97,6 +97,7 @@ public struct NotificationPolicy: Sendable {
         case .hostUnreachable: return "The server could not be reached."
         case .shareNotFound: return "The share was not found."
         case .mountpointBusy: return "The mount point is busy."
+        case .mountpointOccupied: return "Another item is using that folder in /Volumes."
         case .timedOut: return "The mount timed out."
         case .noCredential: return "No password is saved for this share."
         case .unknown: return "The mount failed."

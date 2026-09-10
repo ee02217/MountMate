@@ -44,20 +44,34 @@ actor InMemoryEndpointStore: EndpointStore {
 }
 
 /// A credential store with no Keychain behind it.
+///
+/// Keyed the way `KeychainQuery` keys real items — scheme, host, username, path —
+/// and deliberately **not** by `endpoint.id`. The identifier is not part of the
+/// Keychain key, so keying on it would make two endpoints that differ only by host
+/// collapse into one entry, and a move (write new, delete old) would delete the value
+/// it had just written. A fake that models the wrong identity hides exactly the bug
+/// `CredentialMover` exists to prevent.
 actor InMemoryCredentialStore: CredentialStore {
-    private var passwords: [UUID: String] = [:]
+    private var passwords: [String: String] = [:]
 
     var accessPolicy: CredentialAccessPolicy { .permissive }
 
+    private func key(for endpoint: ShareEndpoint) -> String {
+        let scheme = endpoint.url.scheme?.lowercased() ?? ""
+        let host = endpoint.url.host ?? ""
+        let path = endpoint.url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return "\(scheme)|\(host)|\(endpoint.username)|\(path)"
+    }
+
     func password(for endpoint: ShareEndpoint) async -> String? {
-        passwords[endpoint.id]
+        passwords[key(for: endpoint)]
     }
 
     func setPassword(_ password: String, for endpoint: ShareEndpoint) async throws {
-        passwords[endpoint.id] = password
+        passwords[key(for: endpoint)] = password
     }
 
     func removePassword(for endpoint: ShareEndpoint) async throws {
-        passwords.removeValue(forKey: endpoint.id)
+        passwords.removeValue(forKey: key(for: endpoint))
     }
 }

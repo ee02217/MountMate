@@ -18,3 +18,16 @@ import Foundation
     let inspector = SystemMountInspector()
     #expect(await inspector.isResponsive(path: "/definitely/not/here/xyz") == false)
 }
+
+@Test func nonexistentPathRespondsPromptly() async {
+    // Pins the fast path: statfs on a nonexistent path fails immediately (ENOENT),
+    // so this must return well under the 10s timeout bound. If a future change made
+    // the timeout the only exit, this test would catch it by timing out itself.
+    let inspector = SystemMountInspector()
+    let clock = ContinuousClock()
+    let start = clock.now
+    let result = await inspector.isResponsive(path: "/definitely/not/here/xyz")
+    let elapsed = clock.now - start
+    #expect(result == false)
+    #expect(elapsed < .seconds(5))
+}

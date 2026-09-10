@@ -41,3 +41,21 @@ import Foundation
 
     #expect(resets == 3)
 }
+
+@Test func aWakeNotificationBecomesAWakeEvent() async throws {
+    let center = NotificationCenter()
+    let name = Notification.Name("TestWake")
+    let source = WakeTriggerSource(center: center, name: name)
+
+    let events = source.events
+    let collector = Task { () -> TriggerEvent? in
+        for await event in events { return event }
+        return nil
+    }
+
+    // Give the observer a moment to register before posting.
+    try await Task.sleep(for: .milliseconds(20))
+    center.post(name: name, object: nil)
+
+    #expect(await collector.value == .wake)
+}

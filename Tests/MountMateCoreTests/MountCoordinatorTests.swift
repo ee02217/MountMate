@@ -372,3 +372,58 @@ private func pollUntil(
         return entries.contains { $0.message == "stopped" }
     }
 }
+
+@Test func aPersistentFailureNotifiesOnceAndRecoveryNotifiesAgain() async throws {
+    let service = FakeMountService()
+    let inspector = FakeMountInspector()
+    await service.setMountResult(.failure(MountFailure(reason: .hostUnreachable)))
+    let engine = makeEngine(service: service, inspector: inspector)
+    let endpoint = try makeEndpoint()
+    let recorder = RecordingNotifier()
+
+    let coordinator = MountCoordinator(
+        engine: engine,
+        endpointsProvider: { [endpoint] },
+        sources: [],
+        scheduler: FakeScheduler(limit: 0),
+        notifier: recorder
+    )
+
+    await coordinator.handle(.backstop)
+    #expect(await recorder.posted.isEmpty)   // one failure is a blip
+
+    await coordinator.handle(.backstop)
+    let afterSecond = await recorder.posted
+    #expect(afterSecond.count == 1)
+    #expect(afterSecond[0].kind == .failure)
+
+    await service.setMountResult(.success("/Volumes/Fake"))
+    await coordinator.handle(.backstop)
+
+    let afterRecovery = await recorder.posted
+    #expect(afterRecovery.count == 2)
+    #expect(afterRecovery[1].kind == .recovery)
+
+    await coordinator.stop()
+}
+
+@Test func aCoordinatorWithNoNotifierIsUnaffected() async throws {
+    let service = FakeMountService()
+    let inspector = FakeMountInspector()
+    await service.setMountResult(.failure(MountFailure(reason: .hostUnreachable)))
+    let engine = makeEngine(service: service, inspector: inspector)
+    let endpoint = try makeEndpoint()
+
+    let coordinator = MountCoordinator(
+        engine: engine,
+        endpointsProvider: { [endpoint] },
+        sources: [],
+        scheduler: FakeScheduler(limit: 0)
+    )
+    await coordinator.handle(.backstop)
+    await coordinator.handle(.backstop)
+
+    #expect(await engine.state(for: endpoint.id) == .failed(MountFailure(reason: .hostUnreachable)))
+
+    await coordinator.stop()
+}

@@ -24,6 +24,9 @@ public actor MountCoordinator {
     private let statusStream: AsyncStream<[EndpointStatus]>
 
     private let log: (any ActivityLog)?
+    private let notifier: (any Notifier)?
+    /// Per-endpoint notification state, carried between snapshots.
+    private var notificationPolicy = NotificationPolicy()
     /// The snapshot the last publish produced, for diffing. `nil` until the first.
     private var previousSnapshot: [EndpointStatus]?
 
@@ -32,13 +35,15 @@ public actor MountCoordinator {
         endpointsProvider: @escaping @Sendable () async -> [ShareEndpoint],
         sources: [any TriggerSource],
         scheduler: any Scheduler = SystemScheduler(),
-        log: (any ActivityLog)? = nil
+        log: (any ActivityLog)? = nil,
+        notifier: (any Notifier)? = nil
     ) {
         self.engine = engine
         self.endpointsProvider = endpointsProvider
         self.sources = sources
         self.scheduler = scheduler
         self.log = log
+        self.notifier = notifier
 
         var captured: AsyncStream<[EndpointStatus]>.Continuation!
         statusStream = AsyncStream { captured = $0 }
@@ -68,6 +73,11 @@ public actor MountCoordinator {
                 from: previousSnapshot, to: snapshot, at: Date()
             ) {
                 await log.append(entry)
+            }
+        }
+        if let notifier {
+            for notification in notificationPolicy.evaluate(snapshot) {
+                await notifier.post(notification)
             }
         }
         previousSnapshot = snapshot

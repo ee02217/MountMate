@@ -27,9 +27,12 @@ struct MenuView: View {
                     // level deeper (inside Label's own composition) and NSMenu no
                     // longer finds them, collapsing the row back to one line. Keep
                     // the icon and both `Text`s as flat siblings instead.
+                    // NSMenu renders item images as templates and strips any tint
+                    // regardless of rendering mode, so this symbol draws monochrome
+                    // here — shape is what actually carries the state in the menu;
+                    // colour is a bonus only where the symbol is reused outside it.
                     let status = status(row.dot)
                     Image(systemName: status.symbol)
-                        .renderingMode(.original)
                         .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(status.tint)
                     Text(row.title)

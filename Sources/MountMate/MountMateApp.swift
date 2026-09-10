@@ -32,11 +32,21 @@ final class MenuModel {
     private let controller: AppController
     let settings: SettingsController
     let activityLog: FileActivityLog
+    /// Held as the protocol, not the concrete struct: `UserDefaultsPreferences` is
+    /// synchronous, so calling it directly makes every `await` in the Settings pane a
+    /// warning. Through the existential the requirements really are async.
+    let preferences: any PreferencesStore
     private var pump: Task<Void, Never>?
 
     init() {
         let log = FileActivityLog(directory: JSONEndpointStore.defaultDirectory())
         self.activityLog = log
+
+        let preferences: any PreferencesStore = UserDefaultsPreferences()
+        self.preferences = preferences
+        let notifier = PreferenceGatedNotifier(
+            wrapping: UserNotificationNotifier(), preferences: preferences
+        )
 
         let controller = AppController(
             endpointStore: JSONEndpointStore(directory: JSONEndpointStore.defaultDirectory()),
@@ -44,9 +54,10 @@ final class MenuModel {
             sources: [
                 NetworkTriggerSource(),
                 WakeTriggerSource(),
-                BackstopTimerSource(),
+                BackstopTimerSource(interval: { await preferences.healthCheckInterval }),
             ],
-            log: log
+            log: log,
+            notifier: notifier
         )
         self.controller = controller
         self.settings = SettingsController(

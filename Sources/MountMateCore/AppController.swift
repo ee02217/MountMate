@@ -36,7 +36,8 @@ public actor AppController {
         scheduler: any Scheduler = SystemScheduler(),
         service: any MountService = NetFSMountService(),
         inspector: any MountInspector = SystemMountInspector(),
-        log: (any ActivityLog)? = nil
+        log: (any ActivityLog)? = nil,
+        notifier: (any Notifier)? = nil
     ) {
         self.endpointStore = endpointStore
         self.credentialStore = credentialStore
@@ -55,7 +56,8 @@ public actor AppController {
             endpointsProvider: { cache.endpoints() },
             sources: sources,
             scheduler: scheduler,
-            log: log
+            log: log,
+            notifier: notifier
         )
     }
 

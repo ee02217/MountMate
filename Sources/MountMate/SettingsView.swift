@@ -9,7 +9,7 @@ struct SettingsView: View {
         TabView {
             SharesPane(model: model)
                 .tabItem { Label("Shares", systemImage: "externaldrive") }
-            GeneralPane()
+            GeneralPane(model: model)
                 .tabItem { Label("General", systemImage: "gearshape") }
             DiagnosticsPane(model: model)
                 .tabItem { Label("Diagnostics", systemImage: "stethoscope") }
@@ -127,8 +127,13 @@ struct SharesPane: View {
 }
 
 struct GeneralPane: View {
+    let model: MenuModel
+
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var error: String?
+    @State private var intervalMinutes = 5.0
+    @State private var notifyOnFailure = true
+    @State private var notifyOnRecovery = true
 
     var body: some View {
         Form {
@@ -152,7 +157,37 @@ struct GeneralPane: View {
             if let error {
                 Text(error).font(.caption).foregroundStyle(.secondary)
             }
+
+            Divider()
+
+            Stepper(
+                "Check every \(Int(intervalMinutes)) min",
+                value: $intervalMinutes, in: 1...60
+            )
+            .onChange(of: intervalMinutes) { _, minutes in
+                Task { await model.preferences.setHealthCheckInterval(.seconds(Int(minutes) * 60)) }
+            }
+
+            Toggle("Notify when a share fails", isOn: $notifyOnFailure)
+                .onChange(of: notifyOnFailure) { _, enabled in
+                    Task {
+                        await model.preferences.setNotifyOnFailure(enabled)
+                        // Ask only when switching on, and only because someone
+                        // clicked: never from a background sweep.
+                        if enabled { _ = await UserNotificationNotifier.requestAuthorization() }
+                    }
+                }
+            Toggle("Notify when it recovers", isOn: $notifyOnRecovery)
+                .onChange(of: notifyOnRecovery) { _, enabled in
+                    Task { await model.preferences.setNotifyOnRecovery(enabled) }
+                }
         }
         .padding()
+        .task {
+            let seconds = await model.preferences.healthCheckInterval.components.seconds
+            intervalMinutes = Double(seconds) / 60
+            notifyOnFailure = await model.preferences.notifyOnFailure
+            notifyOnRecovery = await model.preferences.notifyOnRecovery
+        }
     }
 }

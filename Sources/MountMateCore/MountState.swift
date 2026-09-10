@@ -11,6 +11,12 @@ public enum MountFailureReason: Sendable, Equatable {
     /// were quietly given a different path (spec §9.1).
     case mountpointOccupied
     case timedOut
+    /// The server has taken every slot in its `BlockingCallBudget`: earlier mount
+    /// calls against it are still parked in the kernel and have never returned, so
+    /// this attempt was refused rather than stranding another thread. Distinct from
+    /// `.hostUnreachable`, where the network answered "no" — here nothing answered at
+    /// all, and distinct from `.timedOut`, where we did spend a thread waiting.
+    case serverNotResponding
     case noCredential
     case unknown
 }
@@ -29,6 +35,14 @@ extension MountFailureReason {
                 Something else is using that folder in /Volumes. Eject any disk with \
                 the same name, or remove a leftover folder with: \
                 sudo rmdir /Volumes/<share name>
+                """
+        case .serverNotResponding:
+            return """
+                The server accepted the connection but never answered, and earlier \
+                attempts are still waiting on it. Trying again cannot succeed while \
+                it is in that state, so MountMate has stopped until it clears. \
+                Restart file sharing on the server, or restart this Mac; mounting \
+                resumes on its own.
                 """
         case .authenticationFailed, .hostUnreachable, .shareNotFound,
              .mountpointBusy, .timedOut, .noCredential, .unknown:

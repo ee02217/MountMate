@@ -15,15 +15,38 @@ import NetFS
 /// Without that, an `await service.mount(...)` that never returns pins the caller
 /// forever no matter what deadline the caller thinks it applied.
 public struct NetFSMountService: MountService {
+    /// The blocking NetFS call. A seam so tests can supply one that hangs on demand —
+    /// a wedged SMB service cannot be manufactured in a unit test. Same pattern as
+    /// `SystemMountInspector.probe`.
+    typealias BlockingMountCall = @Sendable (ShareEndpoint, String, URL) -> MountOutcome
+
     private let mountDeadline: Duration
     private let unmountDeadline: Duration
+    private let budget: BlockingCallBudget
+    private let mountCall: BlockingMountCall
 
     public init(
         mountDeadline: Duration = .seconds(45),
         unmountDeadline: Duration = .seconds(20)
     ) {
+        self.init(
+            mountDeadline: mountDeadline,
+            unmountDeadline: unmountDeadline,
+            budget: .shared,
+            mountCall: Self.netFSMountCall
+        )
+    }
+
+    init(
+        mountDeadline: Duration,
+        unmountDeadline: Duration,
+        budget: BlockingCallBudget,
+        mountCall: @escaping BlockingMountCall
+    ) {
         self.mountDeadline = mountDeadline
         self.unmountDeadline = unmountDeadline
+        self.budget = budget
+        self.mountCall = mountCall
     }
 
     public static func makeOpenOptions() -> NSMutableDictionary {
@@ -61,23 +84,17 @@ public struct NetFSMountService: MountService {
             mountDirectory = URL(fileURLWithPath: path, isDirectory: true)
         }
 
-        let outcome = try await withBlockingTimeout(mountDeadline) { () -> MountOutcome in
-            var mountpoints: Unmanaged<CFArray>?
-            let status = NetFSMountURLSync(
-                endpoint.url as CFURL,
-                mountDirectory as CFURL,
-                endpoint.username as CFString,
-                // The password stays a `passwd` CFString parameter and never enters
-                // the URL, so it cannot appear in a process listing.
-                password as CFString,
-                Self.makeOpenOptions(),
-                Self.makeMountOptions(
-                    policy: endpoint.mountPolicy, readOnly: endpoint.readOnly
-                ),
-                &mountpoints
-            )
-            let paths = mountpoints?.takeRetainedValue() as? [String]
-            return MountOutcome(status: status, firstPath: paths?.first)
+        // Bounded, not merely deadlined. `withBlockingTimeout` releases the caller on
+        // schedule but leaves the NetFS call parked in the kernel, and against a
+        // wedged SMB service it never returns — so the retry ladder above strands one
+        // thread per attempt, without bound, until the process runs out and dies.
+        // Keyed by host because the wedge is a property of the server (it parks in
+        // NetAuthSysAgent), not of any one share. See `BlockingCallBudget`.
+        let mountCall = self.mountCall
+        let outcome = try await withBoundedBlockingTimeout(
+            mountDeadline, key: Self.budgetKey(for: endpoint), budget: budget
+        ) {
+            mountCall(endpoint, password, mountDirectory)
         }
 
         guard outcome.status == 0 else {
@@ -112,6 +129,29 @@ public struct NetFSMountService: MountService {
                 reason: Self.reason(for: outcome.errorNumber), status: outcome.errorNumber
             )
         }
+    }
+
+    /// The server, not the share: two shares on one wedged NAS park in the same
+    /// wedged agent, so they must draw on one allowance rather than two.
+    static func budgetKey(for endpoint: ShareEndpoint) -> String {
+        endpoint.url.host ?? endpoint.mountFromIdentifier
+    }
+
+    private static let netFSMountCall: BlockingMountCall = { endpoint, password, directory in
+        var mountpoints: Unmanaged<CFArray>?
+        let status = NetFSMountURLSync(
+            endpoint.url as CFURL,
+            directory as CFURL,
+            endpoint.username as CFString,
+            // The password stays a `passwd` CFString parameter and never enters the
+            // URL, so it cannot appear in a process listing.
+            password as CFString,
+            makeOpenOptions(),
+            makeMountOptions(policy: endpoint.mountPolicy, readOnly: endpoint.readOnly),
+            &mountpoints
+        )
+        let paths = mountpoints?.takeRetainedValue() as? [String]
+        return MountOutcome(status: status, firstPath: paths?.first)
     }
 
     /// Maps NetFS/POSIX status codes onto actionable causes.

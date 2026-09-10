@@ -99,6 +99,8 @@ public struct NotificationPolicy: Sendable {
         case .mountpointBusy: return "The mount point is busy."
         case .mountpointOccupied: return "Another item is using that folder in /Volumes."
         case .timedOut: return "The mount timed out."
+        case .serverNotResponding:
+            return "The server stopped responding and is not accepting mount attempts."
         case .noCredential: return "No password is saved for this share."
         case .unknown: return "The mount failed."
         }

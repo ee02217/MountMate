@@ -53,6 +53,7 @@ public enum TransitionLogger {
         case .mountpointBusy: return "mount point busy"
         case .mountpointOccupied: return "mount point in use"
         case .timedOut: return "timed out"
+        case .serverNotResponding: return "server not responding"
         case .noCredential: return "no password saved"
         case .unknown: return "unknown error"
         }

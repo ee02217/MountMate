@@ -57,6 +57,37 @@ public func withBlockingTimeout<T: Sendable>(
     return value
 }
 
+/// `withBlockingTimeout` that also refuses to start when `key` already has its full
+/// allowance of outstanding calls.
+///
+/// `withBlockingTimeout` alone bounds the caller's wall clock but not the process's
+/// thread count: every deadline it reports leaves one more thread parked in the
+/// kernel. A retry ladder driving attempt after attempt against a wedged server
+/// therefore strands a thread per attempt, without bound. This is the variant callers
+/// on such a ladder must use; see `BlockingCallBudget` for why the slot is held until
+/// the abandoned call returns rather than released on the deadline.
+public func withBoundedBlockingTimeout<T: Sendable>(
+    _ timeout: Duration,
+    key: String,
+    budget: BlockingCallBudget = .shared,
+    _ work: @escaping @Sendable () -> T
+) async throws -> T {
+    guard budget.claim(key) else {
+        throw MountFailure(reason: .serverNotResponding)
+    }
+    // The release runs on the worker thread, when the body genuinely returns — not
+    // when the deadline fires. That is the whole point: a slot taken by an abandoned
+    // call stays taken for exactly as long as its thread is still parked.
+    let counted: @Sendable () -> T = {
+        defer { budget.release(key) }
+        return work()
+    }
+    guard let value = await runBlocking(timeout: timeout, counted) else {
+        throw MountFailure(reason: .timedOut)
+    }
+    return value
+}
+
 // MARK: - Bounding async work
 
 /// Runs `operation`, abandoning it if it exceeds `duration`.

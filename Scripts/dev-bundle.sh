@@ -14,8 +14,15 @@ APP="$ROOT/.build/MountMate.app"
 swift build -c "$CONFIG" --product MountMate
 BINARY="$(swift build -c "$CONFIG" --show-bin-path)/MountMate"
 
+# The .icns is a build product and is gitignored, so a fresh clone has none.
+# Regenerate when it is missing or older than the code that draws it.
+ICON="$ROOT/Resources/MountMate.icns"
+if [ ! -f "$ICON" ] || [ "$ROOT/Scripts/make-icon.swift" -nt "$ICON" ]; then
+    swift "$ROOT/Scripts/make-icon.swift"
+fi
+
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 cat >"$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -27,13 +34,15 @@ cat >"$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleName</key><string>MountMate</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>0.1-dev</string>
-    <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>CFBundleIconFile</key><string>MountMate</string>
+    <key>LSMinimumSystemVersion</key><string>26.0</string>
     <key>LSUIElement</key><true/>
 </dict>
 </plist>
 PLIST
 
 cp "$BINARY" "$APP/Contents/MacOS/MountMate"
+cp "$ICON" "$APP/Contents/Resources/MountMate.icns"
 
 echo "Built $APP"
 echo "Run it with:  open \"$APP\""

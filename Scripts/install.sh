@@ -60,11 +60,18 @@ fi
 swift build -c release --product MountMate
 BINARY="$(swift build -c release --show-bin-path)/MountMate"
 
+# The .icns is a build product and is gitignored, so a fresh clone has none.
+# Regenerate when it is missing or older than the code that draws it.
+ICON="$ROOT/Resources/MountMate.icns"
+if [ ! -f "$ICON" ] || [ "$ROOT/Scripts/make-icon.swift" -nt "$ICON" ]; then
+    swift "$ROOT/Scripts/make-icon.swift"
+fi
+
 VERSION="$(git -C "$ROOT" describe --tags --always --dirty 2>/dev/null || echo 0.1)"
 
 # --- 3. assemble ---------------------------------------------------------------
 rm -rf "$STAGING"
-mkdir -p "$STAGING/Contents/MacOS"
+mkdir -p "$STAGING/Contents/MacOS" "$STAGING/Contents/Resources"
 
 cat >"$STAGING/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -76,13 +83,16 @@ cat >"$STAGING/Contents/Info.plist" <<PLIST
     <key>CFBundleName</key><string>MountMate</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>${VERSION}</string>
-    <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>CFBundleIconFile</key><string>MountMate</string>
+    <key>LSMinimumSystemVersion</key><string>26.0</string>
     <key>LSUIElement</key><true/>
 </dict>
 </plist>
 PLIST
 
 cp "$BINARY" "$STAGING/Contents/MacOS/MountMate"
+# Before codesign: adding a file to a signed bundle invalidates the signature.
+cp "$ICON" "$STAGING/Contents/Resources/MountMate.icns"
 
 # --- 4. sign -------------------------------------------------------------------
 codesign --force --options runtime --timestamp=none \

@@ -8,6 +8,7 @@ public actor MountEngine {
     private let inspector: any MountInspector
     private let backoff: BackoffPolicy
     private let mountDeadline: Duration
+    private let unmountDeadline: Duration
     private let passwordProvider: @Sendable (ShareEndpoint) async -> String?
 
     private var states: [UUID: MountState] = [:]
@@ -19,18 +20,24 @@ public actor MountEngine {
     /// network changes, wake, and a timer) can both race past the "already mounted"
     /// check and both call `service.mount`, mounting the same share twice.
     private var inFlight: Set<UUID> = []
+    /// Endpoint ids whose trigger arrived while an attempt was already running. The
+    /// in-flight call honours it with one more pass before returning, so a trigger is
+    /// coalesced rather than dropped. See `ensureMounted`.
+    private var rerunRequested: Set<UUID> = []
 
     public init(
         service: any MountService,
         inspector: any MountInspector,
         backoff: BackoffPolicy = .standard,
         mountDeadline: Duration = .seconds(45),
+        unmountDeadline: Duration = .seconds(20),
         passwordProvider: @escaping @Sendable (ShareEndpoint) async -> String?
     ) {
         self.service = service
         self.inspector = inspector
         self.backoff = backoff
         self.mountDeadline = mountDeadline
+        self.unmountDeadline = unmountDeadline
         self.passwordProvider = passwordProvider
     }
 
@@ -49,6 +56,38 @@ public actor MountEngine {
         attempts.removeAll()
     }
 
+    /// Brings `endpoint` to a mounted state if it is not already there.
+    ///
+    /// This is the engine's entire public surface for the trigger layer, so its
+    /// guarantees are worth stating precisely.
+    ///
+    /// **What a return guarantees:** that the engine is no longer working on this
+    /// endpoint. Read `state(for:)` for the outcome — returning is *not* a success
+    /// signal, and the call may legitimately have done nothing at all (the endpoint was
+    /// disabled, or was already mounted and responsive).
+    ///
+    /// **Concurrency.** One attempt runs per endpoint at a time. A call arriving while
+    /// an attempt is in flight does not start a second attempt and does not wait for
+    /// the running one; it returns immediately and is **coalesced**: the in-flight call
+    /// makes one further pass before it returns. That matters because triggers carry
+    /// information. The motivating case: an attempt is grinding against a dead network
+    /// path, `NWPathMonitor` fires because Wi-Fi came back, and the trigger layer calls
+    /// `resetBackoff()` and then `ensureMounted`. Without coalescing that trigger is
+    /// discarded, the in-flight attempt then fails against the *old* path, and the
+    /// engine settles into `.failed` with `retryDelay == nil` — "nothing to retry" —
+    /// so nothing runs until the 5-minute backstop. With coalescing the new path gets
+    /// its attempt.
+    ///
+    /// It is one further pass, not a loop: a fast trigger source must not be able to
+    /// hold the engine in `ensureMounted` indefinitely. A pass that ended `.mounted`
+    /// has already satisfied whatever the dropped trigger wanted, so it is not
+    /// repeated.
+    ///
+    /// **Backoff.** Every failed pass — including `.noCredential`, which never touches
+    /// the network — increments the attempt count, so `retryDelay(for:)` grows.
+    ///
+    /// **Cancellation.** If the enclosing task is cancelled the call returns without
+    /// recording a failure or advancing backoff: shutting down is not a mount failure.
     public func ensureMounted(_ endpoint: ShareEndpoint) async {
         guard endpoint.enabled else {
             states[endpoint.id] = .idle
@@ -56,12 +95,31 @@ public actor MountEngine {
         }
 
         // No `await` between the check and the insert: on an actor that makes the
-        // pair atomic, so a concurrent call for the same endpoint bails out instead
-        // of racing this one to `service.mount`.
-        guard !inFlight.contains(endpoint.id) else { return }
+        // pair atomic, so a concurrent call for the same endpoint records its request
+        // and bails out instead of racing this one to `service.mount`.
+        guard !inFlight.contains(endpoint.id) else {
+            rerunRequested.insert(endpoint.id)
+            return
+        }
         inFlight.insert(endpoint.id)
-        defer { inFlight.remove(endpoint.id) }
+        rerunRequested.remove(endpoint.id)
+        defer {
+            inFlight.remove(endpoint.id)
+            rerunRequested.remove(endpoint.id)
+        }
 
+        await attempt(endpoint)
+
+        // A trigger arrived mid-attempt. Honour it with one further pass, unless the
+        // pass that just ran already ended mounted — in which case there is nothing
+        // left for that trigger to ask for.
+        if rerunRequested.remove(endpoint.id) != nil {
+            if case .mounted = state(for: endpoint.id) { return }
+            await attempt(endpoint)
+        }
+    }
+
+    private func attempt(_ endpoint: ShareEndpoint) async {
         if let existing = await existingMount(for: endpoint) {
             if await inspector.isResponsive(path: existing.on) {
                 states[endpoint.id] = .mounted(path: existing.on)
@@ -74,14 +132,34 @@ public actor MountEngine {
             // lying about the one thing it exists to get right.
             states[endpoint.id] = .stale(path: existing.on)
             do {
-                try await service.unmount(path: existing.on, force: true)
+                // Deadlined like the mount is. Force-unmounting a wedged mount is
+                // exactly the call most likely to block, and without a bound here it
+                // could hang before the mount deadline was ever reached — which, with
+                // the `inFlight` guard above, would silently drop every later trigger
+                // for this endpoint.
+                let service = self.service
+                let path = existing.on
+                try await withTimeout(unmountDeadline) {
+                    try await service.unmount(path: path, force: true)
+                }
+            } catch is CancellationError {
+                return
+            } catch let failure as MountFailure {
+                // Report what actually happened. Rebuilding this as `.mountpointBusy`
+                // discarded the real cause (host unreachable, timed out, …).
+                fail(endpoint, with: failure)
+                return
             } catch {
-                fail(endpoint, with: MountFailure(reason: .mountpointBusy))
+                fail(endpoint, with: MountFailure(reason: .unknown))
                 return
             }
         }
 
         guard let password = await passwordProvider(endpoint) else {
+            // Counts as an attempt on purpose: without the backoff growing, a trigger
+            // layer facing a locked or empty Keychain would hot-loop the credential
+            // provider (and, for a Keychain-backed provider, the authorization prompt
+            // behind it) as fast as it can fire.
             fail(endpoint, with: MountFailure(reason: .noCredential))
             return
         }
@@ -96,6 +174,11 @@ public actor MountEngine {
             attempts[endpoint.id] = 0
         } catch let failure as MountFailure {
             fail(endpoint, with: failure)
+        } catch is CancellationError {
+            // The enclosing task was cancelled — the app is shutting down, not failing
+            // to mount. Recording `.failed` and advancing backoff would make an
+            // orderly quit look like an outage.
+            return
         } catch {
             fail(endpoint, with: MountFailure(reason: .unknown))
         }

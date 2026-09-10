@@ -163,7 +163,6 @@ struct SharesPane: View {
                     }
                 }
                 .formStyle(.grouped)
-                .padding()
                 .padding(.trailing, 8)
                 // The bar floats over this pane too once the window nears its
                 // minHeight; clear it the same amount as everywhere else.
@@ -321,7 +320,6 @@ struct GeneralPane: View {
             }
         }
         .formStyle(.grouped)
-        .padding()
         .task {
             let seconds = await model.preferences.healthCheckInterval.components.seconds
             intervalMinutes = Double(seconds) / 60

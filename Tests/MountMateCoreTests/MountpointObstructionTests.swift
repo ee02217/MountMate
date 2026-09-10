@@ -32,3 +32,46 @@ import Foundation
 @Test func aNonEmptyDirectoryObstructsTheMountpoint() {
     #expect(MountpointObstruction.fromDirectory(.nonEmpty) == .nonEmptyDirectory)
 }
+
+// MARK: - The remedy a failure carries
+
+@Test func theRemedyForALeftoverDirectoryNamesTheRealPath() throws {
+    let failure = MountFailure(
+        reason: .mountpointOccupied,
+        obstruction: .emptyDirectory,
+        path: "/Volumes/Multimedia"
+    )
+    let remedy = try #require(failure.remedy)
+    #expect(remedy.contains("/Volumes/Multimedia"))
+    #expect(remedy.contains("rmdir"))
+}
+
+@Test func theRemedyForADirectoryWithFilesDoesNotSuggestRmdir() throws {
+    // `rmdir` fails on a non-empty directory. Suggesting it sends the user to a
+    // command that cannot work and tells them nothing about why.
+    let failure = MountFailure(
+        reason: .mountpointOccupied,
+        obstruction: .nonEmptyDirectory,
+        path: "/Volumes/Multimedia"
+    )
+    let remedy = try #require(failure.remedy)
+    #expect(!remedy.contains("rmdir"))
+    #expect(remedy.contains("/Volumes/Multimedia"))
+}
+
+@Test func theRemedyForAnotherVolumeNamesIt() throws {
+    let failure = MountFailure(
+        reason: .mountpointOccupied,
+        obstruction: .otherVolume(from: "//other@host/Thing"),
+        path: "/Volumes/Multimedia"
+    )
+    #expect(try #require(failure.remedy).contains("//other@host/Thing"))
+}
+
+@Test func aFailureWithNoObstructionFallsBackToItsReasonsRemedy() {
+    // `DiagnosticsReport` reads `MountFailureReason.mountpointOccupied.remedy`
+    // statically, with no failure in hand. That must keep working.
+    let failure = MountFailure(reason: .mountpointOccupied)
+    #expect(failure.remedy == MountFailureReason.mountpointOccupied.remedy)
+    #expect(MountFailure(reason: .hostUnreachable).remedy == nil)
+}

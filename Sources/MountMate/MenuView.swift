@@ -30,6 +30,8 @@ struct MenuView: View {
         }
 
         Divider()
+        SettingsLink { Text("Settings…") }
+            .keyboardShortcut(",")
         Button("Quit MountMate") { NSApplication.shared.terminate(nil) }
             .keyboardShortcut("q")
     }

@@ -13,6 +13,10 @@ struct MountMateApp: App {
             Image(systemName: model.presentation.iconSymbolName)
         }
         .menuBarExtraStyle(.menu)
+
+        Settings {
+            SettingsView(model: model)
+        }
     }
 }
 
@@ -26,10 +30,11 @@ final class MenuModel {
     private(set) var presentation = MenuPresentation(statuses: [])
 
     private let controller: AppController
+    let settings: SettingsController
     private var pump: Task<Void, Never>?
 
     init() {
-        controller = AppController(
+        let controller = AppController(
             endpointStore: JSONEndpointStore(directory: JSONEndpointStore.defaultDirectory()),
             credentialStore: KeychainCredentialStore(),
             sources: [
@@ -37,6 +42,11 @@ final class MenuModel {
                 WakeTriggerSource(),
                 BackstopTimerSource(),
             ]
+        )
+        self.controller = controller
+        self.settings = SettingsController(
+            appController: controller,
+            credentialStore: KeychainCredentialStore()
         )
 
         // No Info.plist yet (spec §8, Development bundle), so LSUIElement cannot do

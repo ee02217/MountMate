@@ -14,6 +14,11 @@ struct SettingsView: View {
             DiagnosticsPane(model: model)
                 .tabItem { Label("Diagnostics", systemImage: "stethoscope") }
         }
+        // A floor, not a fixed size. The old 520x380 fought macOS 26's window
+        // sizing; removing it entirely let the window settle at 900x247, where the
+        // activity list is a sliver and the floating bars have nothing behind them
+        // to refract — glass with nothing to do reads as a flat slab.
+        .frame(minWidth: 560, minHeight: 460)
     }
 }
 

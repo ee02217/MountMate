@@ -28,7 +28,7 @@ struct SharesPane: View {
     @State private var drafts: [ShareDraft] = []
     @State private var selection: UUID?
     @State private var status: String?
-    @State private var testResult: String?
+    @State private var testResult: TestOutcome?
 
     var body: some View {
         HSplitView {
@@ -71,19 +71,27 @@ struct SharesPane: View {
                     Toggle("Enabled", isOn: $drafts[index].enabled)
                     Toggle("Read only", isOn: $drafts[index].readOnly)
 
-                    HStack {
-                        Button("Test connection") { test(drafts[index]) }
-                        if let testResult {
-                            Text(testResult).font(.caption)
+                    Button("Test connection") { test(drafts[index]) }
+                    if let testResult {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Image(systemName: testResult.symbol)
+                                .foregroundStyle(testResult.tint)
+                            Text(testResult.message)
+                                .font(.caption)
+                                // Wrap rather than truncate: the useful part of a
+                                // NetFS failure is at the end of the sentence.
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
                 .padding()
+                .padding(.trailing, 8)
             } else {
                 Text("Select a share")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .safeAreaInset(edge: .bottom) {
             GlassEffectContainer(spacing: 12) {
                 HStack {
@@ -123,17 +131,47 @@ struct SharesPane: View {
     }
 
     private func test(_ draft: ShareDraft) {
-        testResult = "Testing…"
+        testResult = TestOutcome.testing
         Task {
             switch await model.settings.test(draft) {
             case .succeeded:
-                testResult = "Connected"
+                testResult = .succeeded()
             case .alreadyMounted(let path):
-                testResult = "Already mounted at \(path)"
+                testResult = .alreadyMounted(at: path)
             case .failed(let failure):
-                testResult = "Failed: \(failure.reason)"
+                testResult = .failed("\(failure.reason)")
             }
         }
+    }
+}
+
+/// What a connection test produced, resolved to what should be drawn. Lives in the
+/// view layer because `MountMateCore` must not import SwiftUI.
+struct TestOutcome {
+    let message: String
+    let symbol: String
+    let tint: Color
+
+    static let testing = TestOutcome(
+        message: "Testing…", symbol: "ellipsis.circle", tint: .secondary
+    )
+
+    static func succeeded() -> TestOutcome {
+        TestOutcome(message: "Connected", symbol: "checkmark.circle.fill", tint: .green)
+    }
+
+    static func alreadyMounted(at path: String) -> TestOutcome {
+        TestOutcome(
+            message: "Already mounted at \(path)",
+            symbol: "checkmark.circle.fill",
+            tint: .green
+        )
+    }
+
+    static func failed(_ reason: String) -> TestOutcome {
+        TestOutcome(
+            message: "Failed: \(reason)", symbol: "xmark.circle.fill", tint: .red
+        )
     }
 }
 

@@ -95,7 +95,8 @@ private func makeEngine(
     let coordinator = MountCoordinator(
         engine: engine,
         endpointsProvider: { [endpoint] },
-        sources: []
+        sources: [],
+        scheduler: FakeScheduler(limit: 0)
     )
     await coordinator.handle(.backstop)
     await coordinator.handle(.backstop)
@@ -105,6 +106,8 @@ private func makeEngine(
     // The reset lands, then this event's own failed attempt puts the count at 1.
     await coordinator.handle(.networkBecameSatisfied)
     #expect(await engine.retryDelay(for: endpoint.id) == .seconds(5))
+
+    await coordinator.stop()
 }
 
 @Test func anOrdinaryPathUpdateLeavesTheLadderAlone() async throws {
@@ -117,7 +120,8 @@ private func makeEngine(
     let coordinator = MountCoordinator(
         engine: engine,
         endpointsProvider: { [endpoint] },
-        sources: []
+        sources: [],
+        scheduler: FakeScheduler(limit: 0)
     )
     await coordinator.handle(.backstop)
     await coordinator.handle(.backstop)
@@ -125,4 +129,67 @@ private func makeEngine(
     // No reset: this is the third failure, so the ladder keeps growing.
     await coordinator.handle(.networkChanged)
     #expect(await engine.retryDelay(for: endpoint.id) == .seconds(20))
+
+    await coordinator.stop()
+}
+
+/// Waits for a condition, failing the test rather than hanging if it never holds.
+private func pollUntil(
+    _ condition: @Sendable () async -> Bool,
+    timeout: Duration = .seconds(2)
+) async throws {
+    let deadline = ContinuousClock.now + timeout
+    while ContinuousClock.now < deadline {
+        if await condition() { return }
+        try await Task.sleep(for: .milliseconds(5))
+    }
+    Issue.record("condition never became true within \(timeout)")
+}
+
+@Test func aFailedEndpointIsRetriedAfterItsBackoffDelay() async throws {
+    let service = FakeMountService()
+    let inspector = FakeMountInspector()
+    await service.setMountResult(.failure(MountFailure(reason: .hostUnreachable)))
+    let engine = makeEngine(service: service, inspector: inspector)
+    let endpoint = try makeEndpoint()
+    let scheduler = FakeScheduler(limit: 1)
+
+    let coordinator = MountCoordinator(
+        engine: engine,
+        endpointsProvider: { [endpoint] },
+        sources: [],
+        scheduler: scheduler
+    )
+    await coordinator.handle(.backstop)
+
+    // First attempt failed, so a retry is scheduled at the initial 5s and — because
+    // the fake does not wait — runs immediately, producing a second mount call.
+    try await pollUntil { await service.mountCalls.count == 2 }
+    // Only the first: the retry's own failure schedules the next rung (10s) before
+    // this line runs, so comparing the whole array is a race.
+    #expect(await scheduler.requested.first == .seconds(5))
+
+    await coordinator.stop()
+}
+
+@Test func aMountedEndpointSchedulesNoRetry() async throws {
+    let service = FakeMountService()
+    let inspector = FakeMountInspector()
+    let engine = makeEngine(service: service, inspector: inspector)
+    let endpoint = try makeEndpoint()
+    let scheduler = FakeScheduler(limit: 1)
+
+    let coordinator = MountCoordinator(
+        engine: engine,
+        endpointsProvider: { [endpoint] },
+        sources: [],
+        scheduler: scheduler
+    )
+    await coordinator.handle(.backstop)
+
+    // Mounted means attempt count 0, so `retryDelay` is nil and nothing is scheduled.
+    #expect(await scheduler.requested.isEmpty)
+    #expect(await engine.state(for: endpoint.id) == .mounted(path: "/Volumes/Fake"))
+
+    await coordinator.stop()
 }

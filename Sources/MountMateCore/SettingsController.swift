@@ -1,7 +1,7 @@
 import Foundation
 
 public enum SettingsError: Error, Equatable {
-    /// Which row, and why, so the pane can point at it.
+    /// Which draft, and why — a sentence the pane can show as it is.
     case invalidDraft(index: Int, reason: String)
 }
 
@@ -49,7 +49,7 @@ public actor SettingsController {
             do {
                 endpoints.append(try draft.validated())
             } catch {
-                let reason = (error as? ShareEndpointError)?.description
+                let reason = (error as? ShareDraftProblem)?.message
                     ?? String(describing: error)
                 throw SettingsError.invalidDraft(index: index, reason: reason)
             }

@@ -30,16 +30,66 @@ import Foundation
 }
 
 /// The form must be allowed to hold an unsupported scheme while it is being typed;
-/// validation is what refuses it, with the same error the file loader gives.
+/// validation is what refuses it. It refuses in the form's own words rather than the
+/// file loader's, which talk about URLs and rows the form does not have.
 @Test func anUnsupportedSchemeFailsValidationNotConstruction() {
     var draft = ShareDraft(id: UUID())
     draft.host = "192.168.1.67"
     draft.sharePath = "Exports"
     draft.scheme = "nfs"
 
-    #expect(throws: ShareEndpointError.unsupportedScheme("nfs")) {
+    #expect(throws: ShareDraftProblem.unsupportedScheme("nfs")) {
         try draft.validated()
     }
+}
+
+// MARK: - What Save tells a person when it refuses a share
+
+@Test func anEmptyHostAsksForOne() {
+    var draft = ShareDraft(id: UUID())
+    draft.sharePath = "Multimedia"
+    #expect(throws: ShareDraftProblem.missingHost) { try draft.validated() }
+}
+
+@Test func anEmptyShareAsksForOne() {
+    var draft = ShareDraft(id: UUID())
+    draft.host = "192.168.1.67"
+    #expect(throws: ShareDraftProblem.missingShare) { try draft.validated() }
+}
+
+/// A host that cannot be put into an address was reported as "the URL has no host"
+/// while the Host field visibly had something in it.
+@Test func aHostThatCannotBeAddressedIsNamedAsSuch() {
+    var draft = ShareDraft(id: UUID())
+    draft.host = "my nas"
+    draft.sharePath = "Multimedia"
+    #expect(throws: ShareDraftProblem.invalidHost("my nas")) { try draft.validated() }
+}
+
+/// A space pasted along with an address is not worth refusing a save over.
+@Test func spacesAroundTheHostAreIgnored() throws {
+    var draft = ShareDraft(id: UUID())
+    draft.host = " 192.168.1.67 "
+    draft.sharePath = "Multimedia"
+    #expect(try draft.validated().url.host == "192.168.1.67")
+}
+
+/// The words name the field a person typed into — never "URL" or "row", which
+/// belong to endpoints.json, not to the form.
+@Test func problemsSpeakTheFormsLanguage() {
+    let problems: [ShareDraftProblem] = [
+        .missingHost, .invalidHost("my nas"), .missingShare, .unsupportedScheme("nfs"),
+    ]
+    for problem in problems {
+        let message = problem.message
+        #expect(!message.localizedCaseInsensitiveContains("url"), "\(message)")
+        #expect(!message.localizedCaseInsensitiveContains("row"), "\(message)")
+        #expect(message.first?.isUppercase == true, "\(message)")
+        #expect(message.hasSuffix("."), "\(message)")
+    }
+    #expect(ShareDraftProblem.missingHost.message.contains("host"))
+    #expect(ShareDraftProblem.missingShare.message.contains("share"))
+    #expect(ShareDraftProblem.invalidHost("my nas").message.contains("my nas"))
 }
 
 @Test func identityFieldsAreHostShareUsernameAndScheme() throws {

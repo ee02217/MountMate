@@ -108,3 +108,23 @@ private func makeControllers(
 
     await app.stop()
 }
+
+/// Save reports which share it refused and why, in words the form can show as they
+/// are: the pane selects that share and puts the reason beside Save.
+@Test func aRefusedSaveNamesTheShareAndTheFieldToFix() async throws {
+    let existing = try makeStoreEndpoint(name: "Multimedia")
+    let (app, _, _, settings) = makeControllers(endpoints: [existing])
+    await app.start()
+
+    let good = ShareDraft(existing, hasStoredPassword: false)
+    var bad = ShareDraft(id: UUID())
+    bad.sharePath = "Exports"   // no host
+
+    await #expect(throws: SettingsError.invalidDraft(
+        index: 1, reason: ShareDraftProblem.missingHost.message
+    )) {
+        try await settings.save([good, bad])
+    }
+
+    await app.stop()
+}

@@ -65,30 +65,72 @@ public struct ShareDraft: Sendable, Equatable, Identifiable {
             || scheme != other.scheme
     }
 
-    /// Throws the same `ShareEndpointError` the file loader reports.
+    /// Throws a `ShareDraftProblem`, worded for the Settings form.
     public func validated() throws -> ShareEndpoint {
+        // A space pasted along with an address is not worth refusing a save over.
+        let host = self.host.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !host.isEmpty else { throw ShareDraftProblem.missingHost }
+
         let path = Self.trimmed(sharePath)
+        guard !path.isEmpty else { throw ShareDraftProblem.missingShare }
+
         var components = URLComponents()
         components.scheme = scheme.lowercased()
         components.host = host
-        components.path = path.isEmpty ? "" : "/\(path)"
+        components.path = "/\(path)"
+        // Nil for a host no address can hold — a space or a slash inside it. This used
+        // to be reported as "no host" while the field visibly had one.
+        guard let url = components.url else { throw ShareDraftProblem.invalidHost(host) }
 
-        guard let url = components.url else {
-            throw ShareEndpointError.missingHost
+        do {
+            return try ShareEndpoint(
+                id: id,
+                displayName: displayName.isEmpty ? path : displayName,
+                url: url,
+                username: username,
+                mountPolicy: mountPolicy,
+                enabled: enabled,
+                readOnly: readOnly
+            )
+        } catch let error as ShareEndpointError {
+            switch error {
+            case .unsupportedScheme(let scheme): throw ShareDraftProblem.unsupportedScheme(scheme ?? "")
+            case .missingHost: throw ShareDraftProblem.invalidHost(host)
+            case .missingShare: throw ShareDraftProblem.missingShare
+            }
         }
-
-        return try ShareEndpoint(
-            id: id,
-            displayName: displayName.isEmpty ? path : displayName,
-            url: url,
-            username: username,
-            mountPolicy: mountPolicy,
-            enabled: enabled,
-            readOnly: readOnly
-        )
     }
 
     private static func trimmed(_ path: String) -> String {
         path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    }
+}
+
+/// Why Save refused a share, in the Settings form's own words.
+///
+/// Deliberately separate from `ShareEndpointError`. That one is what the file loader
+/// reports for a broken entry in endpoints.json, where "row" and "URL" are accurate:
+/// the file is a list of entries with a `url` field. The form has neither — it has
+/// Host and Share fields — so its messages name those.
+public enum ShareDraftProblem: Error, Equatable {
+    case missingHost
+    /// Something is in the Host field, but no address can hold it.
+    case invalidHost(String)
+    case missingShare
+    /// Not reachable from the form today, which only makes SMB shares; kept so a
+    /// draft that somehow carries another scheme is refused in plain words too.
+    case unsupportedScheme(String)
+
+    public var message: String {
+        switch self {
+        case .missingHost:
+            return "Enter the server's host name or IP address."
+        case .invalidHost(let host):
+            return "The host \u{201C}\(host)\u{201D} isn't a valid name or IP address."
+        case .missingShare:
+            return "Enter the share's name."
+        case .unsupportedScheme:
+            return "Only SMB and AFP shares are supported."
+        }
     }
 }

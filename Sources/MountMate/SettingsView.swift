@@ -1,5 +1,6 @@
 import SwiftUI
 import ServiceManagement
+import Security
 import MountMateCore
 
 struct SettingsView: View {
@@ -30,7 +31,8 @@ struct SharesPane: View {
     @State private var drafts: [ShareDraft] = []
     @State private var loaded = false
     @State private var selection: UUID?
-    @State private var status: String?
+    @State private var status: SaveStatus?
+    @State private var clearSaved: Task<Void, Never>?
     @State private var testResult: TestOutcome?
 
     var body: some View {
@@ -51,6 +53,12 @@ struct SharesPane: View {
         // A test result belongs to the share it ran against, not whichever share is
         // selected next.
         .onChange(of: selection) { testResult = nil }
+        // A refusal describes the values Save saw; once they change, it is out of date.
+        // Only errors: a reload after a successful Save changes the drafts too, and
+        // must not wipe the "Saved" it just earned.
+        .onChange(of: drafts) {
+            if status?.isError == true { status = nil }
+        }
     }
 
     // MARK: Sidebar
@@ -198,9 +206,15 @@ struct SharesPane: View {
     private var actionRow: some View {
         HStack(spacing: 8) {
             if let status {
-                Text(status)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                Label {
+                    Text(status.text)
+                        .foregroundStyle(status.isError ? .primary : .secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: status.isError ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                        .foregroundStyle(status.isError ? .red : .green)
+                }
+                .font(.callout)
             }
             Spacer()
             Button("Revert") { revert() }
@@ -227,6 +241,7 @@ struct SharesPane: View {
     private func revert() {
         Task {
             drafts = await model.settings.loadDrafts()
+            clearSaved?.cancel()
             status = nil
             selectFirstIfNeeded()
         }
@@ -238,14 +253,47 @@ struct SharesPane: View {
                 try await model.settings.save(drafts)
                 drafts = await model.settings.loadDrafts()
                 selectFirstIfNeeded()
-                status = "Saved"
+                showSaved()
             } catch let error as SettingsError {
                 if case .invalidDraft(let index, let reason) = error {
-                    status = "Row \(index + 1): \(reason)"
+                    // Put the refused share on screen, so the field to fix is in view
+                    // even if a different share was selected when Save was pressed.
+                    if drafts.indices.contains(index) { selection = drafts[index].id }
+                    status = .failed("Couldn't save \u{201C}\(Self.name(of: drafts, at: index))\u{201D}. \(reason)")
                 }
+            } catch let error as CredentialStoreError {
+                status = .failed(Self.describe(error))
             } catch {
-                status = "Could not save: \(error)"
+                status = .failed("Couldn't save your changes. \(error.localizedDescription)")
             }
+        }
+    }
+
+    /// "Saved" says what just happened, so it goes away after a moment rather than
+    /// sitting beside the button describing an edit made long ago.
+    private func showSaved() {
+        status = .saved
+        clearSaved?.cancel()
+        clearSaved = Task {
+            try? await Task.sleep(for: .seconds(3))
+            if status?.isError == false { status = nil }
+        }
+    }
+
+    /// The name the sidebar shows for that share.
+    private static func name(of drafts: [ShareDraft], at index: Int) -> String {
+        guard drafts.indices.contains(index), !drafts[index].displayName.isEmpty else {
+            return "Untitled"
+        }
+        return drafts[index].displayName
+    }
+
+    /// The Keychain's own explanation of the status, rather than the raw number.
+    private static func describe(_ error: CredentialStoreError) -> String {
+        switch error {
+        case .unexpectedStatus(let status):
+            let reason = (SecCopyErrorMessageString(status, nil) as String?) ?? "error \(status)"
+            return "Couldn't store the password in the Keychain: \(reason)"
         }
     }
 
@@ -262,6 +310,15 @@ struct SharesPane: View {
             }
         }
     }
+}
+
+/// What the last Save did, shown beside the Save button.
+struct SaveStatus {
+    let text: String
+    let isError: Bool
+
+    static let saved = SaveStatus(text: "Saved", isError: false)
+    static func failed(_ text: String) -> SaveStatus { SaveStatus(text: text, isError: true) }
 }
 
 /// What a connection test produced, resolved to what should be drawn. Lives in the

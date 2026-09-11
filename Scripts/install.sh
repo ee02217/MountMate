@@ -1,18 +1,29 @@
 #!/bin/bash
 # Builds, signs and installs MountMate.app into /Applications.
 #
-# Unlike Scripts/dev-bundle.sh, this signs with a real (self-signed) identity, which
-# is what gives the app a stable designated requirement — and that is what
-# SMAppService needs for launch-at-login to survive a rebuild (spec §6.1, §7).
+# Which identity signs it decides whether the Keychain prompts after every update.
+# macOS partitions each Keychain item by the code that created it: by team for code
+# signed with a developer team, by the exact binary's cdhash otherwise. So:
 #
-# The identity is created once, by hand:
-#   Keychain Access > Certificate Assistant > Create a Certificate...
-#     Name:             MountMate Self-Signed
-#     Identity Type:    Self Signed Root
-#     Certificate Type: Code Signing
+#   1. MOUNTMATE_IDENTITY, if set — the caller knows best.
+#   2. An "Apple Development" identity, if there is one. It carries a team ID, so
+#      every build reads the stored password without a prompt. Any Apple ID signed
+#      into Xcode gets one; it is renewed yearly, and a renewed certificate keeps the
+#      same team and designated requirement.
+#   3. "MountMate Self-Signed" as a last resort. Stable enough for launch-at-login,
+#      but it has no team, so macOS asks for the login password after every update
+#      (spec §6). Create it once with ./Scripts/create-identity.sh.
 set -euo pipefail
 
-IDENTITY="${MOUNTMATE_IDENTITY:-MountMate Self-Signed}"
+if [ -n "${MOUNTMATE_IDENTITY:-}" ]; then
+    IDENTITY="$MOUNTMATE_IDENTITY"
+else
+    IDENTITY="$(
+        security find-identity -v -p codesigning 2>/dev/null \
+            | grep -oE '"Apple Development: [^"]+"' | head -1 | tr -d '"'
+    )"
+    [ -n "$IDENTITY" ] || IDENTITY="MountMate Self-Signed"
+fi
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAGING="$ROOT/.build/install/MountMate.app"
 DESTINATION="/Applications/MountMate.app"
@@ -49,9 +60,9 @@ Then run this script again.
 Or point at an identity you already have:
   MOUNTMATE_IDENTITY="Your Identity" $0
 
-Note that an Apple Development certificate works but expires, typically after a
-year — when it does, the login item stops working until the app is re-signed. A
-self-signed identity you control does not expire on anyone else's schedule.
+Better still, sign into Xcode with any Apple ID (Xcode > Settings > Accounts): it
+creates an "Apple Development" identity, which this script prefers, and which stops
+macOS asking for your login password after every update.
 MESSAGE
     exit 1
 fi
@@ -102,6 +113,16 @@ codesign --force --options runtime --timestamp=none \
 # inside SMAppService with an error that says nothing useful, and this script exists
 # precisely to make launch-at-login work.
 codesign --verify --strict --verbose=2 "$STAGING"
+
+TEAM="$(codesign -dvvv "$STAGING" 2>&1 | awk -F= '/^TeamIdentifier=/ {print $2}')"
+if [ -z "$TEAM" ] || [ "$TEAM" = "not set" ]; then
+    cat >&2 <<WARNING
+
+Signed without a developer team. macOS will ask for your login password the first
+time each new build reads a stored share password — after every update. Sign into
+Xcode with an Apple ID and re-run this script to stop the prompts.
+WARNING
+fi
 
 # --- 5. install ----------------------------------------------------------------
 if pgrep -x MountMate >/dev/null; then

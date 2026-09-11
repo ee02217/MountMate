@@ -2,9 +2,11 @@
 # Assembles a minimal unsigned MountMate.app so the menu bar item can be seen
 # during development.
 #
-# This is NOT spec section 7's bundle: no signing, no self-signed identity, no
-# Homebrew, no install. Milestone 7 replaces it. It exists because SwiftPM emits a
-# bare executable with no Info.plist, and LSUIElement lives in one.
+# Not the installed bundle: no hardened runtime, no /Applications, no launch-at-login.
+# It exists because SwiftPM emits a bare executable with no Info.plist, and
+# LSUIElement lives in one. It is signed with an Apple Development identity when there
+# is one — an unsigned build is a different app to the Keychain every time, so each
+# rebuild would ask for the login password (spec §6).
 set -euo pipefail
 
 CONFIG="${1:-debug}"
@@ -43,6 +45,17 @@ PLIST
 
 cp "$BINARY" "$APP/Contents/MacOS/MountMate"
 cp "$ICON" "$APP/Contents/Resources/MountMate.icns"
+
+DEV_IDENTITY="$(
+    security find-identity -v -p codesigning 2>/dev/null \
+        | grep -F '"Apple Development:' | head -1 | awk '{print $2}'
+)"
+if [ -n "$DEV_IDENTITY" ]; then
+    codesign --force --sign "$DEV_IDENTITY" "$APP" 2>/dev/null
+    echo "Signed with an Apple Development identity."
+else
+    echo "Unsigned: macOS will ask for your login password each rebuild." >&2
+fi
 
 echo "Built $APP"
 echo "Run it with:  open \"$APP\""

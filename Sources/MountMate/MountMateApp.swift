@@ -65,6 +65,15 @@ final class MenuModel {
             wrapping: UserNotificationNotifier(), preferences: preferences
         )
 
+        // One recovery for both mount paths, so the restart cooldown is shared: the
+        // engine's attempts and the Test button queue behind the same agent.
+        let recovery = AgentRecovery(
+            reachability: TCPReachability(),
+            resetter: NetAuthAgentResetter(),
+            log: log
+        )
+        let service = RecoveringMountService(wrapping: NetFSMountService(), recovery: recovery)
+
         let controller = AppController(
             endpointStore: JSONEndpointStore(directory: JSONEndpointStore.defaultDirectory()),
             credentialStore: KeychainCredentialStore(),
@@ -73,13 +82,15 @@ final class MenuModel {
                 WakeTriggerSource(),
                 BackstopTimerSource(interval: { await preferences.healthCheckInterval }),
             ],
+            service: service,
             log: log,
             notifier: notifier
         )
         self.controller = controller
         self.settings = SettingsController(
             appController: controller,
-            credentialStore: KeychainCredentialStore()
+            credentialStore: KeychainCredentialStore(),
+            service: service
         )
 
         // No Info.plist yet (spec §8, Development bundle), so LSUIElement cannot do

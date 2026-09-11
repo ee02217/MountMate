@@ -147,11 +147,15 @@ struct ActivityRow: View {
             // Exact wording comes from TransitionLogger.describe and
             // MountEngine's stray-detach log: idle, mounting, "mounted <path>",
             // "not responding at <path>", "failed — <reason>", and
-            // "could not detach stray mount at <path>".
+            // "could not detach stray mount at <path>"; and AgentRecovery's
+            // "restarted the network-mount agent, which was stuck".
             if entry.message.hasPrefix("failed") { return "exclamationmark.circle.fill" }
             if entry.message.hasPrefix("mounted") { return "checkmark.circle.fill" }
             if entry.message.hasPrefix("not responding") { return "exclamationmark.triangle.fill" }
             if entry.message.hasPrefix("could not detach") { return "exclamationmark.triangle.fill" }
+            if entry.message.hasPrefix("restarted the network-mount agent") {
+                return "arrow.counterclockwise.circle.fill"
+            }
             if entry.message.hasPrefix("mounting") { return "arrow.triangle.2.circlepath" }
             if entry.message.hasPrefix("idle") { return "circle" }
             return "circle"
@@ -166,6 +170,7 @@ struct ActivityRow: View {
             if entry.message.hasPrefix("mounted") { return .green }
             if entry.message.hasPrefix("not responding") { return .orange }
             if entry.message.hasPrefix("could not detach") { return .orange }
+            if entry.message.hasPrefix("restarted the network-mount agent") { return .orange }
             return .secondary
         }
     }

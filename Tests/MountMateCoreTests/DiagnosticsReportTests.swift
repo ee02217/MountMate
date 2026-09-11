@@ -12,7 +12,7 @@ import Foundation
     )
     let text = report.text()
 
-    // Spec §6: the weaker case must be visible, never silent.
+    // The weaker case must be visible, never silent.
     #expect(text.contains("bound to this build"))
     #expect(text.contains("0.1-dev"))
     #expect(text.contains("26.5.2"))
@@ -44,7 +44,7 @@ import Foundation
     let text = report.text().lowercased()
 
     #expect(text.contains("multimedia"))
-    #expect(text.contains("smbshare"))
+    #expect(text.contains("nasuser"))
     // Passwords live only in the Keychain and must never reach a pasteboard.
     #expect(!text.contains("password"))
     #expect(!text.contains("hunter2"))
@@ -64,7 +64,7 @@ import Foundation
     )
     let text = report.text()
 
-    // Both have existed since milestone 3 with nothing ever reading them.
+    // Recorded when the file is loaded; this is the only place a person sees them.
     #expect(text.contains("nfs"))
     #expect(text.contains("endpoints.json.corrupt-x"))
 }

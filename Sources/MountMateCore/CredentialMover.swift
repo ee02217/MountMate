@@ -2,7 +2,7 @@ import Foundation
 
 /// Keeps a share's password reachable when the share is edited.
 ///
-/// The Keychain item is keyed on server + account + protocol + path (spec §5.6), so
+/// The Keychain item is keyed on server + account + protocol + path, so
 /// correcting a hostname changes the key and orphans the password — the share then
 /// reports "No password saved" for a reason nobody can see. There is no rename in
 /// the Keychain API, so a move is read, write, delete.

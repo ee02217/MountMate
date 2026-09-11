@@ -16,7 +16,7 @@ public struct SkippedEndpoint: Sendable, Equatable {
 
 /// What a load recovered.
 ///
-/// Loading is salvaging, not all-or-nothing (spec §5.5): one hand-edited entry with a
+/// Loading is salvaging, not all-or-nothing: one hand-edited entry with a
 /// typo must not stop the other shares mounting.
 public struct EndpointLoad: Sendable {
     public let endpoints: [ShareEndpoint]

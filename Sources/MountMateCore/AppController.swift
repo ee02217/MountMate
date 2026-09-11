@@ -1,20 +1,19 @@
 import Foundation
 
-/// Where the parts finally meet.
+/// Where the parts meet.
 ///
-/// Milestones 1-4 deliberately wired nothing together: the engine takes a password
-/// closure, the coordinator takes an endpoints closure, and the stores had no
-/// consumer. This is the composition root that fills those in — and the only place
-/// `enabled` is changed, so the persisted flag and the mount action cannot drift
-/// apart.
+/// The engine takes a password closure, the coordinator takes an endpoints closure,
+/// and the stores know nothing of either. This is the composition root that fills
+/// those in — and the only place `enabled` is changed, so the persisted flag and the
+/// mount action cannot drift apart.
 public actor AppController {
     private let endpointStore: any EndpointStore
     private let credentialStore: any CredentialStore
     private let engine: MountEngine
     private let coordinator: MountCoordinator
 
-    /// The most recent load, including what it skipped or quarantined. 5a shows none
-    /// of it; 5b and milestone 6 do.
+    /// The most recent load, including what it skipped or quarantined, for the
+    /// Diagnostics pane to report.
     public private(set) var lastLoad: EndpointLoad = .empty
 
     /// The cached endpoint list the coordinator reads through its closure. Held in a
@@ -77,7 +76,7 @@ public actor AppController {
 
     /// Mounted becomes unmounted-and-disabled; disabled becomes enabled-and-mounted.
     ///
-    /// Spec §8: a bare unmount would be undone by the next backstop sweep, so the
+    /// A bare unmount would be undone by the next backstop sweep, so the
     /// disable is what makes it hold.
     public func toggle(_ id: UUID) async throws {
         guard var endpoint = cache.endpoints().first(where: { $0.id == id }) else { return }
@@ -121,7 +120,7 @@ public actor AppController {
     }
 
     /// Re-reads the store. Public because the Settings pane and any external edit to
-    /// `endpoints.json` both need it — milestone 5a could only load at `start()`.
+    /// `endpoints.json` both need it, not only `start()`.
     public func reload() async {
         guard let load = try? await endpointStore.load() else { return }
         lastLoad = load

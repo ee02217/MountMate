@@ -9,7 +9,7 @@ public protocol ActivityLog: Sendable {
 
 /// The activity log, as a trimmed file beside `endpoints.json`.
 ///
-/// A file rather than an in-memory buffer (spec §8.1): the failures worth reading
+/// A file rather than an in-memory buffer: the failures worth reading
 /// about happen overnight, and a log that dies with the process cannot answer the
 /// question the pane is opened to ask.
 public actor FileActivityLog: ActivityLog {

@@ -1,7 +1,7 @@
 import Foundation
 
 public struct MountedVolume: Sendable, Equatable {
-    /// `f_mntfromname`, e.g. `//smbshare@192.168.1.67/Multimedia`.
+    /// `f_mntfromname`, e.g. `//nasuser@192.0.2.10/Multimedia`.
     public let from: String
     /// `f_mntonname`, e.g. `/Volumes/Multimedia`.
     public let on: String

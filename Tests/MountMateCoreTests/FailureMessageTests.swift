@@ -30,7 +30,7 @@ import Foundation
     #expect(MountFailureReason.unknown.summary == "Unknown error")
 }
 
-// MARK: - Copy that milestone 12 made false
+// MARK: - Copy that agent recovery made false
 
 /// Written before MountMate could restart the network-mount agent, this remedy told the
 /// user MountMate had stopped and asked them to restart the server or the Mac.

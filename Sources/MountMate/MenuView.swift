@@ -13,7 +13,7 @@ struct MenuView: View {
         } else {
             ForEach(model.presentation.rows) { row in
                 Button {
-                    // ⌥-click reveals instead of acting (spec §8).
+                    // ⌥-click reveals instead of acting.
                     if NSEvent.modifierFlags.contains(.option),
                        let path = subtitlePath(for: row) {
                         model.reveal(path)

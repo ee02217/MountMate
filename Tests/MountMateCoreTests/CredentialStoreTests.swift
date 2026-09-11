@@ -21,25 +21,25 @@ import Foundation
 }
 
 @Test func theQueryIsAGenericPasswordUnderMountMatesOwnService() throws {
-    let endpoint = try makeStoreEndpoint(name: "Multimedia", host: "192.168.1.67")
+    let endpoint = try makeStoreEndpoint(name: "Multimedia", host: "192.0.2.10")
     let attributes = KeychainQuery.attributes(for: endpoint)
 
     // Generic, not internet: an internet password keyed on server+account+protocol
     // collides with the credential Finder and NetFS rely on. MountMate lost one that
-    // way on 2026-09-10 (spec §9.1).
+    // way on 2026-09-10.
     #expect(attributes[kSecClass as String] as? String == kSecClassGenericPassword as String)
     #expect(attributes[kSecAttrService as String] as? String == "com.sergio.mountmate")
 
     // The account still identifies the share unambiguously.
     let account = try #require(attributes[kSecAttrAccount as String] as? String)
-    #expect(account.contains("192.168.1.67"))
+    #expect(account.contains("192.0.2.10"))
     #expect(account.contains("Multimedia"))
-    #expect(account.contains("smbshare"))
+    #expect(account.contains("nasuser"))
 }
 
 @Test func twoSharesOnOneServerGetDifferentAccounts() throws {
-    let first = try makeStoreEndpoint(name: "Multimedia", host: "192.168.1.67")
-    let second = try makeStoreEndpoint(name: "Backup", host: "192.168.1.67")
+    let first = try makeStoreEndpoint(name: "Multimedia", host: "192.0.2.10")
+    let second = try makeStoreEndpoint(name: "Backup", host: "192.0.2.10")
 
     let a = KeychainQuery.attributes(for: first)[kSecAttrAccount as String] as? String
     let b = KeychainQuery.attributes(for: second)[kSecAttrAccount as String] as? String

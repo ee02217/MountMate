@@ -9,7 +9,7 @@ import MountMateCore
 struct UserNotificationNotifier: Notifier {
     /// Asks once, on a user-initiated action. Never called from a background sweep —
     /// an unattended authorization prompt is the class of bug this project exists to
-    /// remove (spec §8.2).
+    /// remove.
     static func requestAuthorization() async -> Bool {
         do {
             return try await UNUserNotificationCenter.current()

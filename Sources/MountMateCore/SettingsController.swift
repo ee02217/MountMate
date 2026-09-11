@@ -10,7 +10,7 @@ public enum SettingsError: Error, Equatable {
 /// Save is one ordered operation over the whole list rather than per-row: validate
 /// everything, settle credentials, then persist and sweep. A row with a typo
 /// therefore costs nothing except that row's correction — the others are never
-/// half-written (spec §8).
+/// half-written.
 public actor SettingsController {
     private let appController: AppController
     private let credentialStore: any CredentialStore

@@ -30,7 +30,7 @@ private final class ObserverToken: @unchecked Sendable {
 
 /// Wake from sleep, via `NSWorkspace`.
 ///
-/// This is the reason `MountMateCore` links AppKit (spec §5.4, "Cost"): there is no
+/// This is the reason `MountMateCore` links AppKit: there is no
 /// non-AppKit notification for wake. The centre and name are injectable so the
 /// behaviour is testable without a real sleep/wake cycle.
 public struct WakeTriggerSource: TriggerSource {

@@ -133,7 +133,7 @@ public actor MountEngine {
     ///
     /// The state becomes `.idle`, not `.failed`: nothing failed. The caller is
     /// expected to disable the endpoint as well — otherwise the next sweep simply
-    /// mounts it again (spec §8).
+    /// mounts it again.
     public func unmount(_ endpoint: ShareEndpoint) async throws {
         guard let existing = await mounts(for: endpoint).expected else {
             // Already detached. The desired end state, so not an error.
@@ -224,7 +224,7 @@ public actor MountEngine {
             // NetFS returns whatever mountpoint it chose. When the expected one is
             // occupied it silently picks `<name>-1`, and accepting that would leave
             // everything configured against the expected path broken while this
-            // engine reported success (spec §9.1).
+            // engine reported success.
             guard ExpectedMountpoint.matches(path, for: endpoint) else {
                 // `try?`: if detaching the stray mount also fails there is nothing
                 // further to do here, and reporting the *original* problem — the

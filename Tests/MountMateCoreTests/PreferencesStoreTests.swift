@@ -13,8 +13,8 @@ private func makeDefaults() -> UserDefaults {
 @Test func unsetPreferencesHaveSensibleDefaults() async {
     let prefs = UserDefaultsPreferences(defaults: makeDefaults())
 
-    // Matches BackstopTimerSource's own default: an unconfigured app behaves exactly
-    // as it did before this milestone existed.
+    // Matches BackstopTimerSource's own default, so an unconfigured app sweeps every
+    // five minutes.
     #expect(await prefs.healthCheckInterval == .seconds(300))
     #expect(await prefs.notifyOnFailure == true)
     #expect(await prefs.notifyOnRecovery == true)

@@ -18,7 +18,7 @@ import Foundation
     #expect(ExpectedMountpoint.matches("/Volumes/Multimedia", for: endpoint))
 }
 
-/// The failure that took Plex offline: NetFS picks `<name>-1` when the expected
+/// The failure that took a media library offline: NetFS picks `<name>-1` when the expected
 /// mountpoint is occupied, and the engine recorded it as success.
 @Test func aSuffixedPathDoesNotMatch() throws {
     let endpoint = try makeStoreEndpoint(name: "Multimedia")

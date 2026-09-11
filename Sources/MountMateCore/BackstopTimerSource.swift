@@ -2,7 +2,7 @@ import Foundation
 
 /// Fires every `interval`, forever.
 ///
-/// Spec §5.4: this bounds the cost of a *missed* event at 5 minutes rather than
+/// This bounds the cost of a *missed* event at 5 minutes rather than
 /// however long the machine stays up. It is also the health probe — `ensureMounted`
 /// re-probes a mounted endpoint and remounts it if it has gone dead — so there is no
 /// separate liveness timer anywhere in this package.
@@ -11,7 +11,7 @@ public struct BackstopTimerSource: TriggerSource {
     private let scheduler: any Scheduler
 
     /// Reads the interval before each sleep, so a preference change lands on the next
-    /// cycle (spec §8.2). Taking it once would mean restarting the coordinator to
+    /// cycle. Taking it once would mean restarting the coordinator to
     /// apply a change — and `stop()` finishes the status stream, which cannot be
     /// un-finished.
     public init(

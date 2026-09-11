@@ -5,7 +5,7 @@ import Foundation
 ///
 /// Why this exists: a probe that times out leaves its worker thread parked in the
 /// kernel forever (see `runBlocking`). One stranded thread is genuinely harmless. One
-/// stranded thread *per probe* is not: the spec's 5-minute backstop re-probes every
+/// stranded thread *per probe* is not: the 5-minute backstop sweep re-probes every
 /// endpoint, so a permanently wedged hard mount would strand ~12 threads an hour,
 /// ~288 a day, on a machine expected to run unattended for months. That reaches the
 /// per-process thread limit in days to weeks and the symptom is process death — the

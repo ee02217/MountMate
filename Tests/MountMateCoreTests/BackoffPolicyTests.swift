@@ -25,8 +25,8 @@ import Foundation
     #expect(policy.delay(forAttempt: -3) == .seconds(5))
 }
 
-@Test func standardPolicyMatchesSpec() {
-    // Spec section 9: 5s -> 5 min cap.
+@Test func standardPolicyStartsAtFiveSecondsAndCapsAtFiveMinutes() {
+    // 5s -> 5 min cap.
     #expect(BackoffPolicy.standard.delay(forAttempt: 1) == .seconds(5))
     #expect(BackoffPolicy.standard.delay(forAttempt: 99) == .seconds(300))
 }

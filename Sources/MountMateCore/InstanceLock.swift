@@ -5,7 +5,7 @@ import Foundation
 /// `MountEngine.inFlight` prevents two attempts inside one process and nothing
 /// prevented two processes. On 2026-09-10 a development build and the installed build
 /// ran together, both saw no existing mount, and both mounted — the loser landing at
-/// `<name>-1` and leaving a placeholder that broke everything else (spec §9.1).
+/// `<name>-1` and leaving a placeholder that broke everything else.
 ///
 /// `flock` rather than a pid file: the kernel releases it when the process exits,
 /// however it exits, so a crash cannot leave a stale lock that blocks every future

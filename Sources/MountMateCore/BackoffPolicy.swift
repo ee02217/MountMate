@@ -13,7 +13,7 @@ public struct BackoffPolicy: Sendable, Equatable {
         self.multiplier = multiplier
     }
 
-    /// Spec section 9: 5s initial, 5 minute cap.
+    /// 5s initial, 5 minute cap.
     public static let standard = BackoffPolicy(
         initialSeconds: 5, maximumSeconds: 300, multiplier: 2
     )

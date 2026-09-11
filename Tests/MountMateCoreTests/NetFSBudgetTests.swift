@@ -32,12 +32,12 @@ private let noopUnmount: NetFSMountService.BlockingUnmountCall = { _, _ in
 }
 
 private func makeEndpoint(
-    name: String = "Multimedia", host: String = "192.168.1.67"
+    name: String = "Multimedia", host: String = "192.0.2.10"
 ) throws -> ShareEndpoint {
     try ShareEndpoint(
         displayName: name,
         url: URL(string: "smb://\(host)/\(name)")!,
-        username: "smbshare",
+        username: "nasuser",
         mountPolicy: .volumes
     )
 }
@@ -95,10 +95,10 @@ private func makeEndpoint(
     )
 
     await #expect(throws: MountFailure(reason: .timedOut)) {
-        try await service.mount(endpoint: try makeEndpoint(host: "192.168.1.67"), password: "hunter2")
+        try await service.mount(endpoint: try makeEndpoint(host: "192.0.2.10"), password: "hunter2")
     }
     await #expect(throws: MountFailure(reason: .timedOut)) {
-        try await service.mount(endpoint: try makeEndpoint(host: "192.168.1.99"), password: "hunter2")
+        try await service.mount(endpoint: try makeEndpoint(host: "192.0.2.99"), password: "hunter2")
     }
 
     #expect(call.entries == 2)

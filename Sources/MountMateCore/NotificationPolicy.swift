@@ -19,7 +19,7 @@ public struct PendingNotification: Sendable, Equatable {
 
 /// Decides what is worth interrupting someone about.
 ///
-/// Spec §8.2: the first failure is not announced, because the backoff ladder retries
+/// The first failure is not announced, because the backoff ladder retries
 /// within seconds and a Wi-Fi hiccup is not news. The second consecutive failure is.
 /// Further failures are not — you have been told. Recovery is announced only if the
 /// failure was, so a blip that heals before anyone was told stays entirely silent.

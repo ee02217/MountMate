@@ -23,7 +23,7 @@ struct DiagnosticsPane: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if policy == .buildBound {
-                // Spec §6: the weaker case must be visible, never silent — and it has
+                // The weaker case must be visible, never silent — and it has
                 // to say what the user can do about it.
                 Label {
                     Text("This copy of MountMate isn't signed with a developer team, so macOS asks for your login password after every update — and until someone answers, shares can't mount. Installing it with an Apple Development identity stops the prompts.")

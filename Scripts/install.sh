@@ -12,7 +12,7 @@
 #      same team and designated requirement.
 #   3. "MountMate Self-Signed" as a last resort. Stable enough for launch-at-login,
 #      but it has no team, so macOS asks for the login password after every update
-#      (spec §6). Create it once with ./Scripts/create-identity.sh.
+#     . Create it once with ./Scripts/create-identity.sh.
 set -euo pipefail
 
 if [ -n "${MOUNTMATE_IDENTITY:-}" ]; then

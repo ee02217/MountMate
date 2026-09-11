@@ -6,7 +6,7 @@
 # It exists because SwiftPM emits a bare executable with no Info.plist, and
 # LSUIElement lives in one. It is signed with an Apple Development identity when there
 # is one — an unsigned build is a different app to the Keychain every time, so each
-# rebuild would ask for the login password (spec §6).
+# rebuild would ask for the login password.
 set -euo pipefail
 
 CONFIG="${1:-debug}"

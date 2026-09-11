@@ -2,7 +2,7 @@ import Foundation
 
 /// The text behind "Copy diagnostics".
 ///
-/// Identifiers are included verbatim (spec §8.1): redacting the hostname is what
+/// Identifiers are included verbatim: redacting the hostname is what
 /// turns "failed — host unreachable" into a line that helps nobody. Passwords are
 /// never in scope — they exist only in the Keychain, and nothing here reads one.
 public struct DiagnosticsReport: Sendable {

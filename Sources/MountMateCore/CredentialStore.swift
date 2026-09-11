@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Neither case is "any process". macOS partitions every Keychain item by the code
 /// that created it, and a process outside the partition gets a prompt rather than the
-/// password. What varies is how stable the partition is (spec §6):
+/// password. What varies is how stable the partition is:
 ///
 /// - Signed with a developer team, the partition is the team, so every build MountMate
 ///   ships from that team reads the item silently.

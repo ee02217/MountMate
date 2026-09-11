@@ -5,7 +5,7 @@ import Foundation
 /// Deriving this is **not** the same as pinning it. `MountPolicy.volumes`
 /// deliberately lets NetFS create the directory, because pre-creating one is exactly
 /// what makes NetFS choose `<name>-1` instead. This computes the expected path only
-/// so a mount can be *checked* against it afterwards (spec §9.1).
+/// so a mount can be *checked* against it afterwards.
 public enum ExpectedMountpoint {
     public static func path(for endpoint: ShareEndpoint) -> String {
         switch endpoint.mountPolicy {

@@ -10,7 +10,7 @@ public enum ConnectionTestResult: Sendable, Equatable {
 
 /// Answers "would this actually mount?" and puts things back.
 ///
-/// NetFS has no dry run, so a successful test really does attach a volume (spec §8).
+/// NetFS has no dry run, so a successful test really does attach a volume.
 /// Whether that volume should survive the test depends entirely on whether the test
 /// created it — detaching a share that was already working could pull it out from
 /// under something mid-read.

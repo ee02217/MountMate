@@ -3,12 +3,12 @@ import Foundation
 @testable import MountMateCore
 
 @Test func aDraftBuiltFromAnEndpointRoundTrips() throws {
-    let endpoint = try makeStoreEndpoint(name: "Multimedia", host: "192.168.1.67")
+    let endpoint = try makeStoreEndpoint(name: "Multimedia", host: "192.0.2.10")
     let draft = ShareDraft(endpoint, hasStoredPassword: true)
 
-    #expect(draft.host == "192.168.1.67")
+    #expect(draft.host == "192.0.2.10")
     #expect(draft.sharePath == "Multimedia")
-    #expect(draft.username == "smbshare")
+    #expect(draft.username == "nasuser")
     #expect(draft.scheme == "smb")
     #expect(draft.hasStoredPassword)
 
@@ -22,7 +22,7 @@ import Foundation
     var draft = ShareDraft(id: UUID())
     #expect(throws: (any Error).self) { try draft.validated() }
 
-    draft.host = "192.168.1.67"
+    draft.host = "192.0.2.10"
     #expect(throws: (any Error).self) { try draft.validated() }
 
     draft.sharePath = "Multimedia"
@@ -34,7 +34,7 @@ import Foundation
 /// file loader's, which talk about URLs and rows the form does not have.
 @Test func anUnsupportedSchemeFailsValidationNotConstruction() {
     var draft = ShareDraft(id: UUID())
-    draft.host = "192.168.1.67"
+    draft.host = "192.0.2.10"
     draft.sharePath = "Exports"
     draft.scheme = "nfs"
 
@@ -53,7 +53,7 @@ import Foundation
 
 @Test func anEmptyShareAsksForOne() {
     var draft = ShareDraft(id: UUID())
-    draft.host = "192.168.1.67"
+    draft.host = "192.0.2.10"
     #expect(throws: ShareDraftProblem.missingShare) { try draft.validated() }
 }
 
@@ -69,9 +69,9 @@ import Foundation
 /// A space pasted along with an address is not worth refusing a save over.
 @Test func spacesAroundTheHostAreIgnored() throws {
     var draft = ShareDraft(id: UUID())
-    draft.host = " 192.168.1.67 "
+    draft.host = " 192.0.2.10 "
     draft.sharePath = "Multimedia"
-    #expect(try draft.validated().url.host == "192.168.1.67")
+    #expect(try draft.validated().url.host == "192.0.2.10")
 }
 
 /// The words name the field a person typed into — never "URL" or "row", which
@@ -103,7 +103,7 @@ import Foundation
     #expect(!renamed.identityDiffers(from: base))
 
     for mutate in [
-        { (d: inout ShareDraft) in d.host = "192.168.1.70" },
+        { (d: inout ShareDraft) in d.host = "192.0.2.20" },
         { (d: inout ShareDraft) in d.sharePath = "Backup" },
         { (d: inout ShareDraft) in d.username = "other" },
         { (d: inout ShareDraft) in d.scheme = "afp" },
@@ -118,8 +118,8 @@ import Foundation
 /// from the same path typed without them.
 @Test func theSharePathIsNormalised() throws {
     var draft = ShareDraft(id: UUID())
-    draft.host = "192.168.1.67"
-    draft.username = "smbshare"
+    draft.host = "192.0.2.10"
+    draft.username = "nasuser"
     draft.sharePath = "/Multimedia/"
 
     let endpoint = try draft.validated()

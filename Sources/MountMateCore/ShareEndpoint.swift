@@ -54,14 +54,13 @@ public struct ShareEndpoint: Sendable, Codable, Equatable, Identifiable {
     ///
     /// Two invariants are enforced here rather than trusted:
     ///
-    /// 1. **No credential in the URL.** Spec §5.5 and §5.6 both require that no
-    ///    password is ever persisted or placed in a URL — the password is a `passwd`
-    ///    parameter to `NetFSMountURLSync` precisely so it never reaches a process
-    ///    listing. But `ShareEndpoint` is `Codable` and milestone 3 writes it to
-    ///    `endpoints.json`, and pasting `smb://user:pass@host/share` into a URL field
-    ///    is completely ordinary. Userinfo is therefore stripped, not merely
-    ///    discouraged: the stored URL cannot carry a secret because it cannot carry
-    ///    userinfo at all. `username` is the authoritative account field.
+    /// 1. **No credential in the URL.** No password is ever persisted or placed in a
+    ///    URL — the password is a `passwd` parameter to `NetFSMountURLSync` precisely
+    ///    so it never reaches a process listing. But `ShareEndpoint` is `Codable` and
+    ///    is written to `endpoints.json`, and pasting `smb://user:pass@host/share`
+    ///    into a URL field is completely ordinary. Userinfo is therefore stripped,
+    ///    not merely discouraged: the stored URL cannot carry a secret because it
+    ///    cannot carry userinfo at all. `username` is the authoritative account field.
     /// 2. **Only schemes whose mount identifier we can derive.** See
     ///    `mountFromIdentifier`.
     public init(
@@ -112,19 +111,19 @@ public struct ShareEndpoint: Sendable, Codable, Equatable, Identifiable {
     private static let slashes = CharacterSet(charactersIn: "/")
 
     /// The `f_mntfromname` value the kernel reports for this share once mounted,
-    /// e.g. `//smbshare@192.168.1.67/Multimedia`. Used to find an existing mount
+    /// e.g. `//nasuser@192.0.2.10/Multimedia`. Used to find an existing mount
     /// regardless of which directory NetFS chose for it.
     ///
-    /// SPEC DEBT (§5.5): the spec claims `nfs://` and WebDAV `https://` work because
-    /// "NetFS dispatches on scheme". NetFS does — but this identifier does not: NFS
+    /// Why only `smb` and `afp`: NetFS can mount `nfs://` and WebDAV `https://` too,
+    /// because it dispatches on scheme — but this identifier does not: NFS
     /// reports `host:/export` and WebDAV an `http(s)` form, neither of which is
     /// `//user@host/share`. For such an endpoint `existingMount(for:)` would never
     /// match, so the engine would believe the share unmounted on every trigger and
     /// remount it — under `.volumes` that produces `<name>-1`, `<name>-2`, … on a
     /// 5-minute timer, which is the exact failure mode this project exists to close.
     /// The initializer therefore refuses every scheme but `smb` and `afp`. Before a
-    /// protocol picker ships, either add per-scheme identifier derivation or narrow
-    /// the spec — do not simply widen `supportedSchemes`.
+    /// protocol picker ships, add per-scheme identifier derivation — do not simply
+    /// widen `supportedSchemes`.
     public var mountFromIdentifier: String {
         let host = url.host ?? ""
         let share = url.path.trimmingCharacters(in: Self.slashes)

@@ -5,8 +5,8 @@ import Foundation
 private func makeEndpoint() throws -> ShareEndpoint {
     try ShareEndpoint(
         displayName: "Multimedia",
-        url: URL(string: "smb://192.168.1.67/Multimedia")!,
-        username: "smbshare",
+        url: URL(string: "smb://192.0.2.10/Multimedia")!,
+        username: "nasuser",
         mountPolicy: .volumes
     )
 }
@@ -116,7 +116,7 @@ private func makeEngine(
 
     await engine.ensureMounted(endpoint)
 
-    // Spec §5.3: the cleanup unmount must be forced. A plain unmount of a wedged
+    // The cleanup unmount must be forced. A plain unmount of a wedged
     // mount is precisely the call that will not return.
     #expect(await service.unmountCalls == [
         FakeMountService.UnmountCall(path: "/Volumes/Multimedia", force: true)
@@ -338,10 +338,10 @@ private struct HangingUnmountService: MountService {
 // MARK: - Sweeping strays
 
 @Test func aStrayMountIsNeverReportedAsMounted() async throws {
-    // The defect 7b's guard could not catch: it inspects only the path a *fresh*
-    // mount returns. A stray already in the table carries the same `from` as the real
-    // share, so the old `.first` lookup adopted it and reported success at a path
-    // Plex cannot use.
+    // What the mountpoint guard alone cannot catch: it inspects only the path a
+    // *fresh* mount returns. A stray already in the table carries the same `from` as
+    // the real share, so the old `.first` lookup adopted it and reported success at a
+    // path nothing configured against the share can use.
     let service = FakeMountService()
     let inspector = FakeMountInspector()
     let endpoint = try makeEndpoint()
@@ -427,7 +427,7 @@ private struct HangingUnmountService: MountService {
 @Test func anObstructedMountpointIsReportedWithoutAttemptingAMount() async throws {
     // NetFS does not fail on a pre-existing directory — it silently picks
     // `<name>-1`. Mounting in order to find that out creates the very stray this
-    // milestone exists to prevent, then has to undo it.
+    // check exists to prevent, then has to undo it.
     let service = FakeMountService()
     let inspector = FakeMountInspector()
     let endpoint = try makeEndpoint()

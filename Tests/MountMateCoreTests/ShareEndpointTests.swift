@@ -4,7 +4,7 @@ import Foundation
 
 private func makeEndpoint(
     url: String,
-    username: String = "smbshare",
+    username: String = "nasuser",
     policy: MountPolicy = .volumes
 ) throws -> ShareEndpoint {
     try ShareEndpoint(
@@ -16,28 +16,28 @@ private func makeEndpoint(
 }
 
 @Test func derivesMountFromIdentifierMatchingGetmntinfo() throws {
-    let endpoint = try makeEndpoint(url: "smb://192.168.1.67/Multimedia")
+    let endpoint = try makeEndpoint(url: "smb://192.0.2.10/Multimedia")
     // Must match what getmntinfo reports for this mount, verified on hardware:
-    //   //smbshare@192.168.1.67/Multimedia
-    #expect(endpoint.mountFromIdentifier == "//smbshare@192.168.1.67/Multimedia")
+    //   //nasuser@192.0.2.10/Multimedia
+    #expect(endpoint.mountFromIdentifier == "//nasuser@192.0.2.10/Multimedia")
 }
 
 // MARK: - No credential ever reaches the URL
 
 @Test func aPasswordInTheURLIsStrippedBeforeItCanBePersisted() throws {
-    // The guard that matters. Spec §5.5 and §5.6 both require that no credential is
-    // ever persisted or placed in a URL, and milestone 3 encodes this type straight
-    // into endpoints.json — so the test has to start from a URL that actually carries
+    // The guard that matters. No credential may ever be persisted or placed in a
+    // URL, and this type is encoded straight into endpoints.json — so the test has
+    // to start from a URL that actually carries
     // a secret. (The previous version of this test grepped for the words "password"
     // and "secret" on an endpoint that never had one: it could not fail.)
     let endpoint = try makeEndpoint(
-        url: "smb://smbshare:s3cr3t@192.168.1.67/Multimedia",
+        url: "smb://nasuser:s3cr3t@192.0.2.10/Multimedia",
         policy: .custom(path: "/Users/me/mnt/media")
     )
 
     #expect(endpoint.url.password == nil)
     #expect(endpoint.url.user == nil)
-    #expect(endpoint.url.absoluteString == "smb://192.168.1.67/Multimedia")
+    #expect(endpoint.url.absoluteString == "smb://192.0.2.10/Multimedia")
 
     let json = String(decoding: try JSONEncoder().encode(endpoint), as: UTF8.self)
     #expect(!json.contains("s3cr3t"))
@@ -51,15 +51,15 @@ private func makeEndpoint(
         {
           "id": "\(UUID().uuidString)",
           "displayName": "Multimedia",
-          "url": "smb://smbshare:s3cr3t@192.168.1.67/Multimedia",
-          "username": "smbshare",
+          "url": "smb://nasuser:s3cr3t@192.0.2.10/Multimedia",
+          "username": "nasuser",
           "mountPolicy": { "volumes": {} },
           "enabled": true,
           "readOnly": false
         }
         """
     let decoded = try JSONDecoder().decode(ShareEndpoint.self, from: Data(json.utf8))
-    #expect(decoded.url.absoluteString == "smb://192.168.1.67/Multimedia")
+    #expect(decoded.url.absoluteString == "smb://192.0.2.10/Multimedia")
 
     let reencoded = String(decoding: try JSONEncoder().encode(decoded), as: UTF8.self)
     #expect(!reencoded.contains("s3cr3t"))
@@ -68,10 +68,10 @@ private func makeEndpoint(
 // MARK: - Scheme restriction
 
 @Test func acceptsTheSchemesWhoseMountIdentifierWeCanDerive() throws {
-    #expect(try makeEndpoint(url: "smb://192.168.1.67/Multimedia").url.scheme == "smb")
-    #expect(try makeEndpoint(url: "afp://192.168.1.67/Multimedia").url.scheme == "afp")
+    #expect(try makeEndpoint(url: "smb://192.0.2.10/Multimedia").url.scheme == "smb")
+    #expect(try makeEndpoint(url: "afp://192.0.2.10/Multimedia").url.scheme == "afp")
     // Case is normalised rather than rejected.
-    #expect(try makeEndpoint(url: "SMB://192.168.1.67/Multimedia").url.scheme == "smb")
+    #expect(try makeEndpoint(url: "SMB://192.0.2.10/Multimedia").url.scheme == "smb")
 }
 
 @Test func rejectsSchemesWhoseMountIdentifierWouldNeverMatch() {
@@ -79,7 +79,7 @@ private func makeEndpoint(
     // reports `host:/export`; an NFS endpoint would therefore never match its own
     // mount, so the engine would remount on every trigger — `<name>-1`, `<name>-2`, …
     // on a 5-minute timer. Closing the door explicitly beats a silent trap.
-    for url in ["nfs://192.168.1.67/export", "https://dav.example.com/share", "ftp://h/s"] {
+    for url in ["nfs://192.0.2.10/export", "https://dav.example.com/share", "ftp://h/s"] {
         #expect(throws: ShareEndpointError.self) {
             try makeEndpoint(url: url)
         }
@@ -87,7 +87,7 @@ private func makeEndpoint(
 }
 
 @Test func rejectsAURLWithNoHost() {
-    // Previously produced a malformed identifier of the form `//smbshare@/Multimedia`.
+    // Previously produced a malformed identifier of the form `//nasuser@/Multimedia`.
     #expect(throws: ShareEndpointError.missingHost) {
         try makeEndpoint(url: "smb:///Multimedia")
     }
@@ -95,13 +95,13 @@ private func makeEndpoint(
 
 @Test func rejectsAURLWithNoShare() {
     #expect(throws: ShareEndpointError.missingShare) {
-        try makeEndpoint(url: "smb://192.168.1.67")
+        try makeEndpoint(url: "smb://192.0.2.10")
     }
 }
 
 @Test func roundTripsThroughCodable() throws {
     let endpoint = try makeEndpoint(
-        url: "smb://192.168.1.67/Multimedia",
+        url: "smb://192.0.2.10/Multimedia",
         policy: .custom(path: "/Users/me/mnt/media")
     )
     let data = try JSONEncoder().encode(endpoint)

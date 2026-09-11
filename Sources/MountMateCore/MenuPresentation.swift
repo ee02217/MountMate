@@ -18,7 +18,7 @@ public struct MenuRow: Sendable, Equatable, Identifiable {
 
 /// The menu, derived from a status snapshot.
 ///
-/// Pure by design (spec §8): this holds the only UI logic worth testing, so it is a
+/// Pure by design: this holds the only UI logic worth testing, so it is a
 /// value with no SwiftUI in it. The views over it are thin enough to check by
 /// reading them.
 public struct MenuPresentation: Sendable, Equatable {

@@ -52,7 +52,7 @@ import Foundation
 
 @Test func aWedgedPathIsProbedOnceAndThenShortCircuited() async {
     // The leak this closes: a probe that times out strands its worker thread forever.
-    // With the spec's 5-minute backstop re-probing, a permanently wedged mount would
+    // With the 5-minute backstop sweep re-probing, a permanently wedged mount would
     // strand ~288 threads a day on a machine meant to run unattended for months, and
     // the eventual failure is process death. So it must be probed once, not once per
     // health check.

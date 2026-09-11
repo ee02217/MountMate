@@ -41,7 +41,7 @@ final class MenuModel {
 
     init() {
         // Before anything touches a mount. A second copy racing the first is what
-        // produced /Volumes/Multimedia-1 and took a Plex library offline (spec §9.1).
+        // produced /Volumes/Multimedia-1 and took a media library offline.
         guard let lock = InstanceLock(path: InstanceLock.defaultPath()) else {
             let alert = NSAlert()
             alert.messageText = "MountMate is already running"
@@ -93,8 +93,8 @@ final class MenuModel {
             service: service
         )
 
-        // No Info.plist yet (spec §8, Development bundle), so LSUIElement cannot do
-        // this. Until milestone 7 assembles the bundle, ask for it at runtime.
+        // Bundled builds set LSUIElement in their Info.plist. `swift run` has no
+        // Info.plist, so ask for menu-bar-only behaviour at runtime as well.
         NSApplication.shared.setActivationPolicy(.accessory)
 
         pump = Task { [controller] in

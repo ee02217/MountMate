@@ -5,13 +5,13 @@ import Foundation
 func makeStoreEndpoint(
     id: UUID = UUID(),
     name: String = "Multimedia",
-    host: String = "192.168.1.67"
+    host: String = "192.0.2.10"
 ) throws -> ShareEndpoint {
     try ShareEndpoint(
         id: id,
         displayName: name,
         url: URL(string: "smb://\(host)/\(name)")!,
-        username: "smbshare",
+        username: "nasuser",
         mountPolicy: .volumes
     )
 }
@@ -65,8 +65,8 @@ private func makeTempDirectory() throws -> URL {
           {
             "id": "11111111-1111-1111-1111-111111111111",
             "displayName": "Multimedia",
-            "url": "smb://192.168.1.67/Multimedia",
-            "username": "smbshare",
+            "url": "smb://192.0.2.10/Multimedia",
+            "username": "nasuser",
             "mountPolicy": { "volumes": {} },
             "enabled": true,
             "readOnly": false
@@ -92,8 +92,8 @@ private func makeTempDirectory() throws -> URL {
           {
             "id": "11111111-1111-1111-1111-111111111111",
             "displayName": "Multimedia",
-            "url": "smb://192.168.1.67/Multimedia",
-            "username": "smbshare",
+            "url": "smb://192.0.2.10/Multimedia",
+            "username": "nasuser",
             "mountPolicy": { "volumes": {} },
             "enabled": true,
             "readOnly": false
@@ -101,8 +101,8 @@ private func makeTempDirectory() throws -> URL {
           {
             "id": "22222222-2222-2222-2222-222222222222",
             "displayName": "Exports",
-            "url": "nfs://192.168.1.67/Exports",
-            "username": "smbshare",
+            "url": "nfs://192.0.2.10/Exports",
+            "username": "nasuser",
             "mountPolicy": { "volumes": {} },
             "enabled": true,
             "readOnly": false
@@ -110,8 +110,8 @@ private func makeTempDirectory() throws -> URL {
           {
             "id": "33333333-3333-3333-3333-333333333333",
             "displayName": "Backup",
-            "url": "smb://192.168.1.67/Backup",
-            "username": "smbshare",
+            "url": "smb://192.0.2.10/Backup",
+            "username": "nasuser",
             "mountPolicy": { "volumes": {} },
             "enabled": true,
             "readOnly": false
@@ -141,8 +141,8 @@ private func makeTempDirectory() throws -> URL {
           {
             "id": "33333333-3333-3333-3333-333333333333",
             "displayName": "Backup",
-            "url": "smb://192.168.1.67/Backup",
-            "username": "smbshare",
+            "url": "smb://192.0.2.10/Backup",
+            "username": "nasuser",
             "mountPolicy": { "volumes": {} },
             "enabled": true,
             "readOnly": false
@@ -222,7 +222,7 @@ private func makeTempDirectory() throws -> URL {
     try await store.save([try makeStoreEndpoint()])
     let written = try String(contentsOf: store.fileURL, encoding: .utf8).lowercased()
 
-    // Spec §5.5 and §5.6: the file must not be able to carry a secret.
+    // The file must not be able to carry a secret.
     #expect(!written.contains("password"))
     #expect(!written.contains("passwd"))
     #expect(!written.contains("secret"))

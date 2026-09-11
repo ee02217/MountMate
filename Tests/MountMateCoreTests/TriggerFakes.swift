@@ -25,8 +25,8 @@ final class FakeTriggerSource: TriggerSource, @unchecked Sendable {
 /// immediately. After `limit` sleeps it parks forever instead: without that bound a
 /// permanently-failing endpoint would spin the retry ladder as fast as the CPU allows.
 /// A mount table that also counts liveness probes, so a test can tell a re-probe
-/// apart from a remount. `FakeMountInspector` is left untouched: milestone 1-2's
-/// fakes and their tests are not this milestone's to change.
+/// apart from a remount. A separate type rather than a counter on
+/// `FakeMountInspector`, so the tests that use that fake stay unchanged.
 actor CountingMountInspector: MountInspector {
     private var volumes: [MountedVolume] = []
     private var responsive: Set<String> = []

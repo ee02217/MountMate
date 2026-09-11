@@ -5,13 +5,13 @@ import Foundation
 private func makeEndpoint() throws -> ShareEndpoint {
     try ShareEndpoint(
         displayName: "Multimedia",
-        url: URL(string: "smb://192.168.1.67/Multimedia")!,
-        username: "smbshare",
+        url: URL(string: "smb://192.0.2.10/Multimedia")!,
+        username: "nasuser",
         mountPolicy: .volumes
     )
 }
 
-private let ours = "//smbshare@192.168.1.67/Multimedia"
+private let ours = "//nasuser@192.0.2.10/Multimedia"
 
 @Test func anEmptyMountTableHasNothingForTheEndpoint() throws {
     let partition = EndpointMounts.partition([], for: try makeEndpoint())
@@ -62,8 +62,8 @@ private let ours = "//smbshare@192.168.1.67/Multimedia"
     // obstruction, not a stray, and this type must not claim it — otherwise the sweep
     // would unmount somebody else's volume.
     let volumes = [
-        MountedVolume(from: "//smbshare@192.168.1.67/Backups", on: "/Volumes/Multimedia"),
-        MountedVolume(from: "//other@192.168.1.99/Multimedia", on: "/Volumes/Multimedia-1"),
+        MountedVolume(from: "//nasuser@192.0.2.10/Backups", on: "/Volumes/Multimedia"),
+        MountedVolume(from: "//other@192.0.2.99/Multimedia", on: "/Volumes/Multimedia-1"),
     ]
     let partition = EndpointMounts.partition(volumes, for: try makeEndpoint())
 

@@ -8,9 +8,9 @@ actor FakeMountService: MountService {
         let password: String
     }
 
-    /// `force` is recorded, not discarded: spec §5.3 requires the stale-mount cleanup
-    /// to be a *force* unmount, and a fake that only remembered the path made that
-    /// requirement untestable.
+    /// `force` is recorded, not discarded: the stale-mount cleanup must be a *force*
+    /// unmount, and a fake that only remembered the path made that requirement
+    /// untestable.
     struct UnmountCall: Equatable {
         let path: String
         let force: Bool

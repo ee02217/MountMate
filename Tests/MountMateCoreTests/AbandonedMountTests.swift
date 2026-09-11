@@ -57,8 +57,8 @@ private final class RecordedUnmounts: @unchecked Sendable {
 private func makeEndpoint(name: String = "Multimedia") throws -> ShareEndpoint {
     try ShareEndpoint(
         displayName: name,
-        url: URL(string: "smb://192.168.1.67/\(name)")!,
-        username: "smbshare",
+        url: URL(string: "smb://192.0.2.10/\(name)")!,
+        username: "nasuser",
         mountPolicy: .volumes
     )
 }

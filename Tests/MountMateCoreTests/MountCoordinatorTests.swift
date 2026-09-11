@@ -27,13 +27,13 @@ import Foundation
 private func makeEndpoint(
     id: UUID = UUID(),
     name: String = "Multimedia",
-    host: String = "192.168.1.67"
+    host: String = "192.0.2.10"
 ) throws -> ShareEndpoint {
     try ShareEndpoint(
         id: id,
         displayName: name,
         url: URL(string: "smb://\(host)/\(name)")!,
-        username: "smbshare",
+        username: "nasuser",
         mountPolicy: .volumes
     )
 }

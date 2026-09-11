@@ -6,7 +6,7 @@ import Foundation
     let obstruction = MountpointObstruction.fromMountTable(
         expectedPath: "/Volumes/Multimedia",
         volumes: [MountedVolume(from: "//other@host/Thing", on: "/Volumes/Multimedia")],
-        ownIdentifier: "//smbshare@host/Multimedia"
+        ownIdentifier: "//nasuser@host/Multimedia"
     )
     #expect(obstruction == .otherVolume(from: "//other@host/Thing"))
 }
@@ -16,7 +16,7 @@ import Foundation
     let obstruction = MountpointObstruction.fromMountTable(
         expectedPath: "/Volumes/Multimedia",
         volumes: [MountedVolume(from: "//other@host/Thing", on: "/Volumes/Thing")],
-        ownIdentifier: "//smbshare@host/Multimedia"
+        ownIdentifier: "//nasuser@host/Multimedia"
     )
     #expect(obstruction == nil)
 }
@@ -86,8 +86,8 @@ import Foundation
     // wedged mount, which is the blocking-call hazard the ordering exists to avoid.
     let obstruction = MountpointObstruction.fromMountTable(
         expectedPath: "/Volumes/Multimedia",
-        volumes: [MountedVolume(from: "//smbshare@host/Multimedia", on: "/Volumes/Multimedia")],
-        ownIdentifier: "//smbshare@host/Multimedia"
+        volumes: [MountedVolume(from: "//nasuser@host/Multimedia", on: "/Volumes/Multimedia")],
+        ownIdentifier: "//nasuser@host/Multimedia"
     )
     #expect(obstruction == .clear)
 }

@@ -375,7 +375,7 @@ struct GeneralPane: View {
                         do {
                             // Reports the real failure rather than silently reverting:
                             // this needs a properly located, stably signed app, which a
-                            // development bundle is not (spec §6, §7).
+                            // development bundle is not.
                             if wanted {
                                 try SMAppService.mainApp.register()
                             } else {

@@ -7,7 +7,7 @@ public enum MountFailureReason: Sendable, Equatable, CaseIterable {
     /// The mount system reported the mountpoint busy.
     case mountpointBusy
     /// The expected mountpoint is taken. Either the share was quietly given a
-    /// different path because the expected one was occupied (spec §9.1), or the
+    /// different path because the expected one was occupied, or the
     /// engine found the obstruction before mounting and refused to attempt. Distinct
     /// from `.mountpointBusy`: nothing refused us.
     case mountpointOccupied

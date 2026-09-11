@@ -7,7 +7,7 @@ private func endpoint(host: String, share: String, id: UUID) throws -> ShareEndp
         id: id,
         displayName: share,
         url: URL(string: "smb://\(host)/\(share)")!,
-        username: "smbshare",
+        username: "nasuser",
         mountPolicy: .volumes
     )
 }
@@ -16,7 +16,7 @@ private func endpoint(host: String, share: String, id: UUID) throws -> ShareEndp
     let store = InMemoryCredentialStore()
     let mover = CredentialMover(store: store)
     let id = UUID()
-    let new = try endpoint(host: "192.168.1.67", share: "Multimedia", id: id)
+    let new = try endpoint(host: "192.0.2.10", share: "Multimedia", id: id)
 
     var draft = ShareDraft(new, hasStoredPassword: false)
     draft.password = "hunter2"
@@ -29,7 +29,7 @@ private func endpoint(host: String, share: String, id: UUID) throws -> ShareEndp
 @Test func anUnchangedShareWithNoTypedPasswordIsLeftAlone() async throws {
     let store = InMemoryCredentialStore()
     let id = UUID()
-    let endpointValue = try endpoint(host: "192.168.1.67", share: "Multimedia", id: id)
+    let endpointValue = try endpoint(host: "192.0.2.10", share: "Multimedia", id: id)
     try await store.setPassword("hunter2", for: endpointValue)
 
     let mover = CredentialMover(store: store)
@@ -43,8 +43,8 @@ private func endpoint(host: String, share: String, id: UUID) throws -> ShareEndp
 @Test func changingTheHostMovesThePasswordAndLeavesNoOrphan() async throws {
     let store = InMemoryCredentialStore()
     let id = UUID()
-    let old = try endpoint(host: "192.168.1.67", share: "Multimedia", id: id)
-    let new = try endpoint(host: "192.168.1.70", share: "Multimedia", id: id)
+    let old = try endpoint(host: "192.0.2.10", share: "Multimedia", id: id)
+    let new = try endpoint(host: "192.0.2.20", share: "Multimedia", id: id)
     try await store.setPassword("hunter2", for: old)
 
     let mover = CredentialMover(store: store)
@@ -60,8 +60,8 @@ private func endpoint(host: String, share: String, id: UUID) throws -> ShareEndp
 @Test func aTypedPasswordWinsOverTheMovedOne() async throws {
     let store = InMemoryCredentialStore()
     let id = UUID()
-    let old = try endpoint(host: "192.168.1.67", share: "Multimedia", id: id)
-    let new = try endpoint(host: "192.168.1.70", share: "Multimedia", id: id)
+    let old = try endpoint(host: "192.0.2.10", share: "Multimedia", id: id)
+    let new = try endpoint(host: "192.0.2.20", share: "Multimedia", id: id)
     try await store.setPassword("old-password", for: old)
 
     let mover = CredentialMover(store: store)
@@ -78,8 +78,8 @@ private func endpoint(host: String, share: String, id: UUID) throws -> ShareEndp
 @Test func movingWithNothingStoredStoresNothing() async throws {
     let store = InMemoryCredentialStore()
     let id = UUID()
-    let old = try endpoint(host: "192.168.1.67", share: "Multimedia", id: id)
-    let new = try endpoint(host: "192.168.1.70", share: "Multimedia", id: id)
+    let old = try endpoint(host: "192.0.2.10", share: "Multimedia", id: id)
+    let new = try endpoint(host: "192.0.2.20", share: "Multimedia", id: id)
 
     let mover = CredentialMover(store: store)
     let draft = ShareDraft(new, hasStoredPassword: false)

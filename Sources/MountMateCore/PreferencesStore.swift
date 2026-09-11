@@ -2,9 +2,9 @@ import Foundation
 
 /// Settings that are not endpoints.
 ///
-/// `UserDefaults` rather than a file (spec §8.2): §5.5's reasons for choosing a file
-/// were about a list a person hand-edits, diffs and restores, none of which describes
-/// an interval and two toggles.
+/// `UserDefaults` rather than a file. The share list is a file because a person
+/// hand-edits, diffs and restores it; none of that describes an interval and two
+/// toggles.
 public protocol PreferencesStore: Sendable {
     var healthCheckInterval: Duration { get async }
     var notifyOnFailure: Bool { get async }
@@ -25,9 +25,7 @@ public protocol PreferencesStore: Sendable {
 public struct UserDefaultsPreferences: PreferencesStore, @unchecked Sendable {
     private let defaults: UserDefaults
 
-    /// The interval an unconfigured app uses — the same value `BackstopTimerSource`
-    /// defaulted to before this milestone, so behaviour is unchanged until someone
-    /// changes it.
+    /// The interval an unconfigured app uses: five minutes.
     public static let defaultInterval: Duration = .seconds(300)
     /// Below this, sweeps would overlap and hammer a NAS that is already struggling.
     private static let minimumIntervalSeconds = 30

@@ -9,7 +9,7 @@ public protocol Notifier: Sendable {
 
 /// Applies the user's notification preferences.
 ///
-/// Exists so preferences never reach `MountCoordinator` (spec §8.2): the coordinator
+/// Exists so preferences never reach `MountCoordinator`: the coordinator
 /// knows it has a notifier, and nothing about what the user wants to hear about.
 public struct PreferenceGatedNotifier: Notifier {
     private let wrapped: any Notifier

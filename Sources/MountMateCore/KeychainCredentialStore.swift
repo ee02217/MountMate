@@ -4,7 +4,7 @@ import Security
 /// Builds the attribute dictionary identifying one endpoint's Keychain item.
 ///
 /// A **generic** password under MountMate's own service, not an internet password
-/// (spec §9.1). Internet passwords are keyed on server + account + protocol + path,
+///. Internet passwords are keyed on server + account + protocol + path,
 /// which is the same space Finder and NetFS use — and macOS leaves `path` empty while
 /// this app filled it in, so MountMate's items were invisible to the system while its
 /// writes and deletes could still land on the system's. A working credential was lost
@@ -37,7 +37,7 @@ enum KeychainQuery {
 /// Passwords, in the login Keychain.
 ///
 /// The password reaches `NetFSMountURLSync` as its `passwd` parameter and is never
-/// embedded in a URL, so it never appears in a process listing (spec §5.6).
+/// embedded in a URL, so it never appears in a process listing.
 public struct KeychainCredentialStore: CredentialStore {
     private let teamIdentifier: @Sendable () -> String?
 

@@ -19,7 +19,7 @@ public enum TriggerEvent: Sendable, Equatable {
 extension TriggerEvent {
     /// Whether this event invalidates prior failure history.
     ///
-    /// Spec §5.4: only a genuine reconnect or a wake justifies clearing the ladder.
+    /// Only a genuine reconnect or a wake justifies clearing the ladder.
     /// `NWPathMonitor` fires repeatedly while a flaky link settles, so resetting on
     /// every path update would hot-loop mount attempts — precisely what the backoff
     /// exists to prevent. `.launch` is false because at launch there is no history to

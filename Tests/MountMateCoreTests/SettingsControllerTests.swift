@@ -30,9 +30,9 @@ private func makeControllers(
 
     var draft = ShareDraft(id: UUID())
     draft.displayName = "Multimedia"
-    draft.host = "192.168.1.67"
+    draft.host = "192.0.2.10"
     draft.sharePath = "Multimedia"
-    draft.username = "smbshare"
+    draft.username = "nasuser"
     draft.password = "hunter2"
 
     try await settings.save([draft])
@@ -54,7 +54,7 @@ private func makeControllers(
     good.displayName = "Renamed"
 
     var bad = ShareDraft(id: UUID())
-    bad.host = "192.168.1.67"
+    bad.host = "192.0.2.10"
     bad.sharePath = "Exports"
     bad.scheme = "nfs"
 
@@ -90,19 +90,19 @@ private func makeControllers(
 }
 
 @Test func editingAHostCarriesThePasswordAcross() async throws {
-    let original = try makeStoreEndpoint(name: "Multimedia", host: "192.168.1.67")
+    let original = try makeStoreEndpoint(name: "Multimedia", host: "192.0.2.10")
     let (app, endpointStore, credentials, settings) = makeControllers(endpoints: [original])
     try await credentials.setPassword("hunter2", for: original)
     await app.start()
 
     var moved = ShareDraft(original, hasStoredPassword: true)
-    moved.host = "192.168.1.70"
+    moved.host = "192.0.2.20"
 
     try await settings.save([moved])
 
     let stored = try await endpointStore.load()
     let newEndpoint = try #require(stored.endpoints.first)
-    #expect(newEndpoint.url.host == "192.168.1.70")
+    #expect(newEndpoint.url.host == "192.0.2.20")
     #expect(await credentials.password(for: newEndpoint) == "hunter2")
     #expect(await credentials.password(for: original) == nil)
 

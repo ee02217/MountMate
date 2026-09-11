@@ -106,7 +106,7 @@ import Foundation
     )
     await controller.start()
 
-    // 5a shows none of this, but discarding it would make 5b and milestone 6 unable
+    // Kept even when nothing is wrong: discarding it would leave Diagnostics unable
     // to report a config problem that already happened.
     #expect(await controller.lastLoad.skipped.isEmpty)
     #expect(await controller.lastLoad.endpoints.count == 1)
@@ -138,7 +138,7 @@ import Foundation
     await controller.stop()
 }
 
-/// The gap milestone 5a left: edits to the file had no effect while running.
+/// Edits made to the file while the app runs must take effect, not wait for a restart.
 @Test func reloadPicksUpChangesMadeOutsideTheController() async throws {
     let first = try makeStoreEndpoint(name: "Multimedia")
     let endpointStore = InMemoryEndpointStore(endpoints: [first])

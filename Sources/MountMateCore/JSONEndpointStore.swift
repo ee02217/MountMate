@@ -20,7 +20,7 @@ private struct DecodedEndpoint: Decodable {
 
 /// The endpoint list, as a JSON file.
 ///
-/// Deliberately not `UserDefaults` (spec §5.5): a file is inspectable, diffable,
+/// Deliberately not `UserDefaults`: a file is inspectable, diffable,
 /// backup-able, and survives uninstall/reinstall. The cost is that a person can edit
 /// it into an invalid state, which is why loading salvages rather than refuses.
 public struct JSONEndpointStore: EndpointStore {
@@ -48,8 +48,8 @@ public struct JSONEndpointStore: EndpointStore {
             decoded = try JSONDecoder().decode([DecodedEndpoint].self, from: data)
         } catch {
             // Not parseable as an array at all. Preserve it rather than destroy it:
-            // this is a person's configuration, and the reason spec §5.5 chose a file
-            // was that a person can read and repair one.
+            // this is a person's configuration, and the reason it is a file at all is
+            // that a person can read and repair one.
             let quarantine = try quarantineFile()
             return EndpointLoad(endpoints: [], quarantined: quarantine)
         }

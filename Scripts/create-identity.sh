@@ -3,7 +3,7 @@
 #
 # Nothing here is ever shared between machines. The private key is generated locally
 # and stays in this Mac's login keychain; a friend installing MountMate gets their
-# own identity created the same way (spec §6, §7). The certificate exists so
+# own identity created the same way. The certificate exists so
 # `codesign` can produce a stable designated requirement, which is what SMAppService
 # needs for launch-at-login to survive a rebuild.
 #

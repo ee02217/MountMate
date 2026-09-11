@@ -206,3 +206,37 @@ private func makeRecovery(
     #expect(await TCPReachability(timeout: .seconds(3)).answers(endpoint) == false)
     #expect(ContinuousClock.now - started < .seconds(3))
 }
+
+// MARK: - The race the live test exposed
+
+/// Blocks the way NetFS does — on a thread, ignoring cancellation — then reports the
+/// inner deadline.
+private struct NonCooperativeTimingOutService: MountService {
+    let blockFor: TimeInterval
+    func mount(endpoint: ShareEndpoint, password: String) async throws -> String {
+        _ = await runBlocking(timeout: .seconds(10)) { Thread.sleep(forTimeInterval: blockFor) }
+        throw MountFailure(reason: .timedOut)
+    }
+    func unmount(path: String, force: Bool) async throws {}
+}
+
+/// Live, 2026-09-11: the engine's own 45s deadline and NetFS's inner one race. When
+/// the engine's wins, it abandons and cancels the body the decorator runs in — and the
+/// first stuck attempt then produced no restart. Recovery must not depend on which
+/// deadline fires first.
+@Test func recoveryStillRunsWhenTheCallersDeadlineWinsTheRace() async throws {
+    let (recovery, _, resetter) = makeRecovery()
+    let service = RecoveringMountService(
+        wrapping: NonCooperativeTimingOutService(blockFor: 0.3), recovery: recovery
+    )
+    let endpoint = try makeStoreEndpoint()
+
+    await #expect(throws: MountFailure(reason: .timedOut)) {
+        try await withTimeout(.milliseconds(100)) {
+            try await service.mount(endpoint: endpoint, password: "p")
+        }
+    }
+    // The abandoned body finishes on its own, ~200ms later.
+    try await Task.sleep(for: .milliseconds(600))
+    #expect(await resetter.restarts == 1)
+}

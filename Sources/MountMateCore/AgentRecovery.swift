@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // When macOS's network-mount agent wedges, MountMate restarts it.
 //
@@ -44,6 +45,11 @@ public protocol AgentResetter: Sendable {
     func restartNetworkMountAgent() async
 }
 
+/// Every decision is written to the system log under this subsystem, so a recovery
+/// that did — or did not — happen can be explained afterwards:
+/// `log show --predicate 'subsystem == "com.sergio.mountmate" AND category == "recovery"'`
+let recoveryLog = Logger(subsystem: "com.sergio.mountmate", category: "recovery")
+
 /// Restarts the agent when a failure says it is stuck, and nothing else.
 public actor AgentRecovery {
     private let policy: AgentRecoveryPolicy
@@ -76,16 +82,30 @@ public actor AgentRecovery {
     /// the server is up. Returns whether it did.
     @discardableResult
     public func recover(after failure: MountFailure, mounting endpoint: ShareEndpoint) async -> Bool {
+        let share = endpoint.displayName
         // Cheapest first: a failure that is not the signature costs no network probe.
-        guard policy.isStuckAgentSignature(failure),
-              policy.mayRestart(now: now(), lastRestart: lastRestart),
-              !deciding else { return false }
+        guard policy.isStuckAgentSignature(failure) else {
+            recoveryLog.debug("\(share, privacy: .public): \(String(describing: failure.reason), privacy: .public) is not the stuck-agent signature")
+            return false
+        }
+        guard policy.mayRestart(now: now(), lastRestart: lastRestart) else {
+            recoveryLog.notice("\(share, privacy: .public): declined — within the restart cooldown")
+            return false
+        }
+        guard !deciding else {
+            recoveryLog.notice("\(share, privacy: .public): declined — another failure is already being handled")
+            return false
+        }
         deciding = true
         defer { deciding = false }
 
         // A server that does not answer is the network's problem, not the agent's.
-        guard await reachability.answers(endpoint) else { return false }
+        guard await reachability.answers(endpoint) else {
+            recoveryLog.notice("\(share, privacy: .public): declined — the server did not answer")
+            return false
+        }
 
+        recoveryLog.notice("\(share, privacy: .public): restarting NetAuthSysAgent after \(String(describing: failure.reason), privacy: .public)")
         await resetter.restartNetworkMountAgent()
         lastRestart = now()
         await log?.append(ActivityEntry(
@@ -118,8 +138,12 @@ public struct RecoveringMountService: MountService {
         do {
             return try await inner.mount(endpoint: endpoint, password: password)
         } catch let failure as MountFailure {
+            recoveryLog.notice("\(endpoint.displayName, privacy: .public): mount failed with \(String(describing: failure.reason), privacy: .public); consulting recovery")
             await recovery.recover(after: failure, mounting: endpoint)
             throw failure
+        } catch {
+            recoveryLog.notice("\(endpoint.displayName, privacy: .public): mount ended with \(String(describing: error), privacy: .public), which recovery does not see")
+            throw error
         }
     }
 

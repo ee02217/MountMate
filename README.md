@@ -9,7 +9,10 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/menu.png" width="253" alt="The MountMate menu, showing a mounted share">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/menu.png">
+    <img src="docs/images/menu-light.png" width="253" alt="The MountMate menu, showing a mounted share">
+  </picture>
 </p>
 
 ## Why it exists
@@ -50,12 +53,21 @@ a notification and in a log.
 ## Screenshots
 
 <p align="center">
-  <img src="docs/images/shares.png" width="760" alt="Settings: the Shares pane, with a share's server, account and connection test">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/shares.png">
+    <img src="docs/images/shares-light.png" width="760" alt="Settings: the Shares pane, with a share's server, account and connection test">
+  </picture>
 </p>
 
 <p align="center">
-  <img src="docs/images/general.png" width="440" alt="Settings: the General pane, with launch at login, check interval and notifications">
-  <img src="docs/images/diagnostics.png" width="440" alt="Settings: the Diagnostics pane, showing the activity log">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/general.png">
+    <img src="docs/images/general-light.png" width="440" alt="Settings: the General pane, with launch at login, check interval and notifications">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/diagnostics.png">
+    <img src="docs/images/diagnostics-light.png" width="440" alt="Settings: the Diagnostics pane, showing the activity log">
+  </picture>
 </p>
 
 ## Requirements

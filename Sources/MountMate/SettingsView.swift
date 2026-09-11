@@ -173,10 +173,15 @@ struct SharesPane: View {
             } footer: {
                 if let testResult {
                     Label {
-                        // Wraps rather than truncates: the useful part of a NetFS
-                        // failure is at the end of the sentence.
-                        Text(testResult.message)
-                            .fixedSize(horizontal: false, vertical: true)
+                        // Wraps rather than truncates: a remedy is a sentence or two.
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(testResult.message)
+                            if let detail = testResult.detail {
+                                Text(detail)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .fixedSize(horizontal: false, vertical: true)
                     } icon: {
                         Image(systemName: testResult.symbol)
                             .foregroundStyle(testResult.tint)
@@ -253,7 +258,7 @@ struct SharesPane: View {
             case .alreadyMounted(let path):
                 testResult = .alreadyMounted(at: path)
             case .failed(let failure):
-                testResult = .failed("\(failure.reason)")
+                testResult = .failed(failure)
             }
         }
     }
@@ -265,6 +270,8 @@ struct TestOutcome {
     let message: String
     let symbol: String
     let tint: Color
+    /// What to do about it, when there is something to do — shown under the message.
+    var detail: String? = nil
 
     static let testing = TestOutcome(
         message: "Testing…", symbol: "ellipsis.circle", tint: .secondary
@@ -282,9 +289,14 @@ struct TestOutcome {
         )
     }
 
-    static func failed(_ reason: String) -> TestOutcome {
+    /// The reason in words a person can read, never the enum case, and the remedy
+    /// beneath it when the failure carries one.
+    static func failed(_ failure: MountFailure) -> TestOutcome {
         TestOutcome(
-            message: "Failed: \(reason)", symbol: "xmark.circle.fill", tint: .red
+            message: failure.reason.summary,
+            symbol: "xmark.circle.fill",
+            tint: .red,
+            detail: failure.remedy
         )
     }
 }

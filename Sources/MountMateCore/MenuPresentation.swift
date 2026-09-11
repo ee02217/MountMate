@@ -82,24 +82,9 @@ public struct MenuPresentation: Sendable, Equatable {
         case .failed(let failure):
             return MenuRow(
                 id: status.id, title: status.displayName,
-                subtitle: Self.describe(failure.reason),
+                subtitle: failure.reason.summary,
                 dot: .failed, actionTitle: "Retry"
             )
-        }
-    }
-
-    /// Plain language, because this is read by a person deciding what to do next.
-    private static func describe(_ reason: MountFailureReason) -> String {
-        switch reason {
-        case .authenticationFailed: return "Authentication failed"
-        case .hostUnreachable: return "Host unreachable"
-        case .shareNotFound: return "Share not found"
-        case .mountpointBusy: return "Mount point busy"
-        case .mountpointOccupied: return "Mount point in use"
-        case .timedOut: return "Timed out"
-        case .serverNotResponding: return "Server not responding"
-        case .noCredential: return "No password saved"
-        case .unknown: return "Failed"
         }
     }
 }

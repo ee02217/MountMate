@@ -41,21 +41,7 @@ public enum TransitionLogger {
         case .mounting: return "mounting"
         case .mounted(let path): return "mounted \(path)"
         case .stale(let path): return "not responding at \(path)"
-        case .failed(let failure): return "failed — \(describe(failure.reason))"
-        }
-    }
-
-    private static func describe(_ reason: MountFailureReason) -> String {
-        switch reason {
-        case .authenticationFailed: return "authentication failed"
-        case .hostUnreachable: return "host unreachable"
-        case .shareNotFound: return "share not found"
-        case .mountpointBusy: return "mount point busy"
-        case .mountpointOccupied: return "mount point in use"
-        case .timedOut: return "timed out"
-        case .serverNotResponding: return "server not responding"
-        case .noCredential: return "no password saved"
-        case .unknown: return "unknown error"
+        case .failed(let failure): return "failed — \(failure.reason.summary.lowercased())"
         }
     }
 }

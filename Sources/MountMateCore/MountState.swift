@@ -1,6 +1,6 @@
 import Foundation
 
-public enum MountFailureReason: Sendable, Equatable {
+public enum MountFailureReason: Sendable, Equatable, CaseIterable {
     case authenticationFailed
     case hostUnreachable
     case shareNotFound
@@ -29,6 +29,23 @@ extension MountFailureReason {
     /// improved by advice. This one does, and it is not guessable: the app is given a
     /// different path without being told why, and the cause is a directory or a disk
     /// nobody was looking at.
+    /// What went wrong, in a few words a person can read. The menu, the activity log and
+    /// Settings' Test result all use it, so a failure reads the same wherever it
+    /// appears. Notifications keep fuller sentences of their own.
+    public var summary: String {
+        switch self {
+        case .authenticationFailed: return "Authentication failed"
+        case .hostUnreachable: return "Host unreachable"
+        case .shareNotFound: return "Share not found"
+        case .mountpointBusy: return "Mount point busy"
+        case .mountpointOccupied: return "Mount point in use"
+        case .timedOut: return "Timed out"
+        case .serverNotResponding: return "Server not responding"
+        case .noCredential: return "No password saved"
+        case .unknown: return "Unknown error"
+        }
+    }
+
     public var remedy: String? {
         switch self {
         case .mountpointOccupied:
@@ -39,11 +56,11 @@ extension MountFailureReason {
                 """
         case .serverNotResponding:
             return """
-                The server accepted the connection but never answered, and earlier \
-                attempts are still waiting on it. Trying again cannot succeed while \
-                it is in that state, so MountMate has stopped until it clears. \
-                Restart file sharing on the server, or restart this Mac; mounting \
-                resumes on its own.
+                Earlier mount attempts are still waiting, so new ones are held back \
+                until they clear. If the server is still accepting connections, \
+                MountMate restarts macOS's network-mount agent to release them — at \
+                most once every five minutes. If this keeps happening, restart file \
+                sharing on the server.
                 """
         case .authenticationFailed, .hostUnreachable, .shareNotFound,
              .mountpointBusy, .timedOut, .noCredential, .unknown:

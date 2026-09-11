@@ -2,34 +2,25 @@ import SwiftUI
 import ServiceManagement
 import MountMateCore
 
-/// Clearance the floating glass bar needs from whatever content sits behind it.
-///
-/// Derived from the bar's own construction: the HStack's `.padding()` adds ~16pt top
-/// and bottom, the buttons contribute roughly 20-24pt of height, and the
-/// safeAreaInset itself adds `.padding(.bottom, 8)` beneath the capsule — call it
-/// 60-70pt total. 76 clears that with a few points of margin so nothing sitting
-/// under the bar is ever actually covered.
-enum GlassBar {
-    static let clearance: CGFloat = 76
-}
-
 struct SettingsView: View {
     let model: MenuModel
 
     var body: some View {
+        // The Settings scene sizes the window to each tab's minimum when switching, so
+        // each minimum is the size that tab actually opens at.
         TabView {
             SharesPane(model: model)
+                .frame(minWidth: 760, idealWidth: 820, minHeight: 460, idealHeight: 540)
                 .tabItem { Label("Shares", systemImage: "externaldrive") }
             GeneralPane(model: model)
+                // Sized to its content, like the General tab of any Apple app: a
+                // short form in a tall window reads as unfinished.
+                .frame(width: 520, height: 244)
                 .tabItem { Label("General", systemImage: "gearshape") }
             DiagnosticsPane(model: model)
+                .frame(minWidth: 680, idealWidth: 760, minHeight: 460, idealHeight: 540)
                 .tabItem { Label("Diagnostics", systemImage: "stethoscope") }
         }
-        // A floor, not a fixed size. The old 520x380 fought macOS 26's window
-        // sizing; removing it entirely let the window settle at 900x247, where the
-        // activity list is a sliver and the floating bars have nothing behind them
-        // to refract — glass with nothing to do reads as a flat slab.
-        .frame(minWidth: 560, minHeight: 460)
     }
 }
 
@@ -44,163 +35,196 @@ struct SharesPane: View {
 
     var body: some View {
         HSplitView {
-            VStack(spacing: 0) {
-                // The "Multimedia" share appeared to stop drawing even though
-                // `drafts` loaded fine, and .listStyle(.sidebar) was blamed and
-                // dropped — but the List was legitimately empty: the app was
-                // blocked on a login-Keychain prompt, so loadDrafts() hadn't
-                // returned anything yet. Once the password was entered, the row
-                // rendered correctly with .listStyle(.sidebar) in place. Restored.
-                List(selection: $selection) {
-                    ForEach(drafts) { draft in
-                        Text(draft.displayName.isEmpty ? "Untitled" : draft.displayName)
-                            .tag(draft.id)
-                    }
-                }
-                .listStyle(.sidebar)
-                .overlay {
-                    // A blank grey rectangle here is indistinguishable from a bug —
-                    // this happens for real when the login Keychain is still locked
-                    // when the pane first appears. loadDrafts() does not return
-                    // empty in that case — it blocks on the system password prompt —
-                    // so the list simply has nothing to show yet. Gate this on
-                    // `loaded` so the overlay only appears once loading has actually
-                    // finished; showing it during that block would claim there are no
-                    // shares when the truth is we just don't know yet. Kept quiet and
-                    // small (no ContentUnavailableView icon/hero treatment) since this
-                    // is a sidebar, not a hero panel.
-                    if loaded && drafts.isEmpty {
-                        VStack(spacing: 4) {
-                            Text("No shares")
-                                .foregroundStyle(.secondary)
-                            Text("Click + to add one")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                        }
-                        .multilineTextAlignment(.center)
-                        .padding()
-                    }
-                }
-                HStack(spacing: 2) {
-                    Button {
-                        drafts.append(ShareDraft())
-                        selection = drafts.last?.id
-                    } label: {
-                        Image(systemName: "plus").frame(width: 24, height: 20)
-                    }
-                    .help("Add a share")
-
-                    Button {
-                        drafts.removeAll { $0.id == selection }
-                        selection = drafts.first?.id
-                    } label: {
-                        Image(systemName: "minus").frame(width: 24, height: 20)
-                    }
-                    .disabled(selection == nil)
-                    .help("Remove the selected share")
-
-                    Spacer()
-                }
-                .buttonStyle(.borderless)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 4)
-                .overlay(alignment: .top) { Divider() }
-                // safeAreaPadding(.bottom) was tried first: it reads the ambient
-                // bottom safe-area inset from the environment and adds that much
-                // real padding. It read as zero here and cleared nothing, because
-                // HSplitView hosts each of its panes in its own NSHostingView —
-                // the safeAreaInset attached to the HSplitView itself insets the
-                // split view's own content area, but that inset doesn't cross into
-                // a child pane's separately-hosted SwiftUI environment. So there is
-                // no ambient inset for safeAreaPadding to pick up down here.
-                // Fall back to a fixed bottom padding sized to clear the glass bar
-                // outright — see `GlassBar.clearance` for how that number is derived.
-                .padding(.bottom, GlassBar.clearance)
-            }
-            // A floor with no ceiling let the List consume the HSplitView: with
-            // the sidebar finally populated (see above), it claimed ~710pt of a
-            // 900pt window and left the detail Form ~150pt wide, wrapping labels
-            // mid-word and truncating field values. Cap the band so the detail
-            // form keeps the majority of the width.
-            .frame(minWidth: 160, idealWidth: 200, maxWidth: 260)
-
-            if let index = drafts.firstIndex(where: { $0.id == selection }) {
-                Form {
-                    TextField("Name", text: $drafts[index].displayName)
-                    TextField("Host", text: $drafts[index].host)
-                    TextField("Share", text: $drafts[index].sharePath)
-                    TextField("Username", text: $drafts[index].username)
-                    LabeledContent("Password") {
-                        HStack(spacing: 8) {
-                            SecureField(
-                                drafts[index].hasStoredPassword ? "Saved" : "Required",
-                                text: Binding(
-                                    get: { drafts[index].password ?? "" },
-                                    set: { drafts[index].password = $0.isEmpty ? nil : $0 }
-                                )
-                            )
-                            if drafts[index].hasStoredPassword {
-                                Image(systemName: "key.fill")
-                                    .foregroundStyle(.secondary)
-                                    .help("A password is saved in the Keychain")
-                            }
-                        }
-                    }
-                    Toggle("Enabled", isOn: $drafts[index].enabled)
-                    Toggle("Read only", isOn: $drafts[index].readOnly)
-
-                    Button("Test connection") { test(drafts[index]) }
-                    if let testResult {
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Image(systemName: testResult.symbol)
-                                .foregroundStyle(testResult.tint)
-                            Text(testResult.message)
-                                .font(.caption)
-                                // Wrap rather than truncate: the useful part of a
-                                // NetFS failure is at the end of the sentence.
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                }
-                .formStyle(.grouped)
-                .padding(.trailing, 8)
-                // The bar floats over this pane too once the window nears its
-                // minHeight; clear it the same amount as everywhere else.
-                .padding(.bottom, GlassBar.clearance)
-            } else {
-                Text("Select a share")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
+            sidebar
+                // A floor and a ceiling: without the ceiling the list claims most of
+                // the window and the form is left too narrow to read.
+                .frame(minWidth: 170, idealWidth: 200, maxWidth: 220)
+            detail
+                .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .safeAreaInset(edge: .bottom) {
-            GlassEffectContainer(spacing: 12) {
-                HStack {
-                    if let status { Text(status).font(.caption) }
-                    Spacer()
-                    Button("Revert") {
-                        Task { drafts = await model.settings.loadDrafts() }
-                    }
-                    .buttonStyle(.glass)
-                    .disabled(!loaded)
-                    Button("Save") { save() }
-                        .buttonStyle(.glassProminent)
-                        .keyboardShortcut(.defaultAction)
-                        .disabled(!loaded)
-                }
-                .padding()
-                .glassEffect(.regular, in: .rect(cornerRadius: 16))
-            }
-            .padding(.horizontal)
-            .padding(.bottom, 8)
-        }
         .task {
             drafts = await model.settings.loadDrafts()
             loaded = true
+            selectFirstIfNeeded()
         }
-        // A red "Failed:" row from the previously selected share must not be read
-        // as this one's result just because the pane hasn't refreshed yet.
+        // A test result belongs to the share it ran against, not whichever share is
+        // selected next.
         .onChange(of: selection) { testResult = nil }
+    }
+
+    // MARK: Sidebar
+
+    private var sidebar: some View {
+        VStack(spacing: 0) {
+            List(selection: $selection) {
+                Section("Shares") {
+                    ForEach(drafts) { draft in
+                        Label(
+                            draft.displayName.isEmpty ? "Untitled" : draft.displayName,
+                            systemImage: "externaldrive"
+                        )
+                        .tag(draft.id)
+                    }
+                }
+            }
+            .listStyle(.sidebar)
+
+            addRemoveBar
+        }
+    }
+
+    private var addRemoveBar: some View {
+        HStack(spacing: 2) {
+            Button {
+                drafts.append(ShareDraft())
+                selection = drafts.last?.id
+            } label: {
+                Image(systemName: "plus").frame(width: 24, height: 20)
+            }
+            .help("Add a share")
+            // A draft added before the load lands would be overwritten by it.
+            .disabled(!loaded)
+
+            Button {
+                drafts.removeAll { $0.id == selection }
+                selection = drafts.first?.id
+            } label: {
+                Image(systemName: "minus").frame(width: 24, height: 20)
+            }
+            .help("Remove the selected share")
+            .disabled(selection == nil)
+
+            Spacer()
+        }
+        .buttonStyle(.borderless)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .overlay(alignment: .top) { Divider() }
+    }
+
+    // MARK: Detail
+
+    /// The action row stays put whatever the pane above it shows, so removing the
+    /// last share can still be saved.
+    private var detail: some View {
+        VStack(spacing: 0) {
+            Group {
+                if !loaded {
+                    // loadDrafts() waits on the login Keychain when it is locked, so
+                    // this can be on screen for as long as the system prompt is. It
+                    // must not claim anything about the shares while it waits.
+                    ProgressView("Loading shares…")
+                        .controlSize(.small)
+                } else if let index = drafts.firstIndex(where: { $0.id == selection }) {
+                    form(for: index)
+                } else if drafts.isEmpty {
+                    ContentUnavailableView {
+                        Label("No Shares", systemImage: "externaldrive.badge.plus")
+                    } description: {
+                        Text("Click + to add a network share.")
+                    }
+                } else {
+                    ContentUnavailableView {
+                        Label("No Share Selected", systemImage: "externaldrive")
+                    } description: {
+                        Text("Select a share to edit it.")
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            actionRow
+        }
+    }
+
+    private func form(for index: Int) -> some View {
+        Form {
+            Section {
+                TextField("Name", text: $drafts[index].displayName)
+            }
+
+            Section("Server") {
+                TextField("Host", text: $drafts[index].host)
+                TextField("Share", text: $drafts[index].sharePath)
+                TextField("Username", text: $drafts[index].username)
+                // A bare SecureField renders like the TextFields above it in a grouped
+                // form — label leading, value trailing. The prompt carries whether a
+                // password is already stored, so the label never changes.
+                SecureField(
+                    "Password",
+                    text: Binding(
+                        get: { drafts[index].password ?? "" },
+                        set: { drafts[index].password = $0.isEmpty ? nil : $0 }
+                    ),
+                    prompt: Text(drafts[index].hasStoredPassword ? "Saved in Keychain" : "Required")
+                )
+            }
+
+            Section {
+                Toggle("Enabled", isOn: $drafts[index].enabled)
+                Toggle("Read only", isOn: $drafts[index].readOnly)
+            }
+
+            Section {
+                LabeledContent("Connection") {
+                    Button("Test") { test(drafts[index]) }
+                }
+            } footer: {
+                if let testResult {
+                    Label {
+                        // Wraps rather than truncates: the useful part of a NetFS
+                        // failure is at the end of the sentence.
+                        Text(testResult.message)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        Image(systemName: testResult.symbol)
+                            .foregroundStyle(testResult.tint)
+                    }
+                    .font(.callout)
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    /// Beneath the form rather than floating over it: a form this short never
+    /// scrolls, so a floating bar would float over nothing.
+    private var actionRow: some View {
+        HStack(spacing: 8) {
+            if let status {
+                Text(status)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Revert") { revert() }
+                .disabled(!loaded)
+            Button("Save") { save() }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(!loaded)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 4)
+        .padding(.bottom, 16)
+    }
+
+    // MARK: Actions
+
+    /// Keeps the detail pane from sitting empty while there are shares to show.
+    private func selectFirstIfNeeded() {
+        if !drafts.contains(where: { $0.id == selection }) {
+            selection = drafts.first?.id
+        }
+    }
+
+    private func revert() {
+        Task {
+            drafts = await model.settings.loadDrafts()
+            status = nil
+            selectFirstIfNeeded()
+        }
     }
 
     private func save() {
@@ -208,6 +232,7 @@ struct SharesPane: View {
             do {
                 try await model.settings.save(drafts)
                 drafts = await model.settings.loadDrafts()
+                selectFirstIfNeeded()
                 status = "Saved"
             } catch let error as SettingsError {
                 if case .invalidDraft(let index, let reason) = error {
@@ -269,7 +294,7 @@ struct GeneralPane: View {
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var error: String?
-    @State private var intervalMinutes = 5.0
+    @State private var intervalMinutes = 5
     @State private var notifyOnFailure = true
     @State private var notifyOnRecovery = true
 
@@ -299,12 +324,13 @@ struct GeneralPane: View {
             }
 
             Section {
-                Stepper(
-                    "Check every \(Int(intervalMinutes)) min",
-                    value: $intervalMinutes, in: 1...60
-                )
+                Picker("Check shares", selection: $intervalMinutes) {
+                    ForEach(intervalChoices, id: \.self) { minutes in
+                        Text(Self.describe(minutes)).tag(minutes)
+                    }
+                }
                 .onChange(of: intervalMinutes) { _, minutes in
-                    Task { await model.preferences.setHealthCheckInterval(.seconds(Int(minutes) * 60)) }
+                    Task { await model.preferences.setHealthCheckInterval(.seconds(minutes * 60)) }
                 }
 
                 Toggle("Notify when a share fails", isOn: $notifyOnFailure)
@@ -325,9 +351,27 @@ struct GeneralPane: View {
         .formStyle(.grouped)
         .task {
             let seconds = await model.preferences.healthCheckInterval.components.seconds
-            intervalMinutes = Double(seconds) / 60
+            intervalMinutes = max(1, Int(seconds) / 60)
             notifyOnFailure = await model.preferences.notifyOnFailure
             notifyOnRecovery = await model.preferences.notifyOnRecovery
+        }
+    }
+
+    private static let intervals = [1, 2, 5, 10, 15, 30, 60]
+
+    /// The presets, plus the stored value if it is not one of them — an interval set
+    /// before the presets existed stays selectable instead of being quietly changed.
+    private var intervalChoices: [Int] {
+        Self.intervals.contains(intervalMinutes)
+            ? Self.intervals
+            : (Self.intervals + [intervalMinutes]).sorted()
+    }
+
+    private static func describe(_ minutes: Int) -> String {
+        switch minutes {
+        case 1: return "Every Minute"
+        case 60: return "Every Hour"
+        default: return "Every \(minutes) Minutes"
         }
     }
 }

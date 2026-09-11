@@ -2,6 +2,15 @@ import SwiftUI
 import AppKit
 import MountMateCore
 
+/// Clearance the floating glass bar needs from the list scrolling beneath it.
+///
+/// Derived from the bar's construction: its `.padding()` adds ~16pt above and below,
+/// the button is roughly 20-24pt tall, and the inset adds `.padding(.bottom, 8)` under
+/// the capsule — 60-70pt in all. 76 clears that with a little margin.
+enum GlassBar {
+    static let clearance: CGFloat = 76
+}
+
 struct DiagnosticsPane: View {
     let model: MenuModel
 
@@ -48,9 +57,7 @@ struct DiagnosticsPane: View {
                 ActivityRow(entry: entry)
                     .listRowSeparator(.hidden)
             }
-            // Unlike the Shares detail Form, this list has no other bottom padding
-            // of its own, so the content margin here is the whole clearance, not a
-            // top-up on top of something else.
+            // Lets the last rows scroll clear of the floating bar.
             .contentMargins(.bottom, GlassBar.clearance, for: .scrollContent)
 
         }
@@ -62,7 +69,7 @@ struct DiagnosticsPane: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Button(copied ? "Copied" : "Copy diagnostics") { copy() }
+                    Button(copied ? "Copied" : "Copy Diagnostics") { copy() }
                         .buttonStyle(.glass)
                 }
                 .padding()
@@ -92,9 +99,8 @@ struct DiagnosticsPane: View {
         NSPasteboard.general.setString(report.text(), forType: .string)
         copied = true
 
-        // A control's label says what it does. Left alone, this one read "Copied"
-        // indefinitely — observed still saying it ten minutes after the click, which
-        // describes a past event rather than the action available now.
+        // A button's title says what it will do, so "Copied" reverts after a moment
+        // rather than describing a past event indefinitely.
         resetCopied?.cancel()
         resetCopied = Task {
             try? await Task.sleep(for: .seconds(2))

@@ -108,6 +108,7 @@ signed. Every Keychain item carries a list of which code may read it without ask
 - **Without a team** (self-signed or unsigned): the item is tied to the exact binary
   that saved it. Each new build is a stranger, and macOS asks for your login password
   the first time it reads the item. *Always Allow* helps only until the next build.
+  The download from GitHub Releases is self-signed, so it is in this group.
 
 Diagnostics warns when the second case applies, and the copied diagnostics report
 states which one does.

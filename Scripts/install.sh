@@ -1,5 +1,6 @@
 #!/bin/bash
 # Builds, signs and installs MountMate.app into /Applications.
+# With --open, also opens it once installed.
 #
 # Which identity signs it decides whether the Keychain prompts after every update.
 # macOS partitions each Keychain item by the code that created it: by team for code
@@ -14,6 +15,9 @@
 #      but it has no team, so macOS asks for the login password after every update
 #     . Create it once with ./Scripts/create-identity.sh.
 set -euo pipefail
+
+OPEN=false
+[ "${1:-}" = "--open" ] && OPEN=true
 
 if [ -n "${MOUNTMATE_IDENTITY:-}" ]; then
     IDENTITY="$MOUNTMATE_IDENTITY"
@@ -91,9 +95,18 @@ fi
 rm -rf "$DESTINATION"
 cp -R "$STAGING" "$DESTINATION"
 
-cat <<DONE
+echo
+echo "Installed $DESTINATION  (version $VERSION, signed as \"$IDENTITY\" / $IDENTITY_HASH)"
 
-Installed $DESTINATION  (version $VERSION, signed as "$IDENTITY" / $IDENTITY_HASH)
+if $OPEN; then
+    open "$DESTINATION"
+    cat <<DONE
+
+MountMate is running: look for its icon in the menu bar.
+To keep it running, turn on Settings > General > "Launch MountMate at login".
+DONE
+else
+    cat <<DONE
 
 Next:
   open "$DESTINATION"
@@ -102,3 +115,4 @@ Next:
 The login item points at /Applications, so re-running this script upgrades in
 place without re-enabling it.
 DONE
+fi

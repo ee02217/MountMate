@@ -16,7 +16,6 @@
 set -euo pipefail
 
 REPO="${MOUNTMATE_REPO:-https://github.com/ee02217/MountMate.git}"
-APP="/Applications/MountMate.app"
 
 fail() { echo "MountMate: $*" >&2; exit 1; }
 
@@ -66,12 +65,5 @@ if [ -z "${MOUNTMATE_IDENTITY:-}" ] \
 fi
 
 # --- 4. build, install, open ---------------------------------------------------
-"$WORK/MountMate/Scripts/install.sh"
-open "$APP"
-
-cat <<DONE
-
-MountMate is running: look for its icon in the menu bar.
-To keep it running, turn on Settings > General > "Launch MountMate at login".
-To update later, run the same command again.
-DONE
+"$WORK/MountMate/Scripts/install.sh" --open
+echo "To update later, run the same command again."

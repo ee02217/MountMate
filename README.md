@@ -72,39 +72,57 @@ a notification and in a log.
 
 ## Requirements
 
-- **macOS 26** or later.
+- **macOS 26** or later, on Apple silicon or Intel.
 - An **SMB** file share, such as one on a NAS.
-- **Xcode 26** or its command line tools, to build from source.
-- Recommended: **sign in to Xcode with an Apple ID** (Xcode → Settings → Accounts).
-  It's free, and it gives your builds an *Apple Development* signing identity. Without
-  one, macOS asks for your login password every time a new build of MountMate reads
-  the saved share password. [Why](docs/how-it-works.md#passwords-and-the-keychain).
 
 ## Install
 
-MountMate is built from source:
+There are two ways to install MountMate. Downloading it needs nothing else.
+Building it yourself takes one command, and afterwards macOS leaves it alone.
+
+| | Download | Build with one command |
+|---|---|---|
+| Needs | Nothing | Xcode 26 or its command line tools |
+| First launch | Allowed once in System Settings, for each version | Opens normally |
+| After an update | macOS asks for your login password once | No prompt, with an Apple ID in Xcode |
+
+### Download
+
+1. Download [**MountMate.zip**](https://github.com/ee02217/MountMate/releases/latest/download/MountMate.zip)
+   and open it.
+2. Drag **MountMate** into **Applications**, and open it from there.
+3. macOS says it can't verify MountMate, because it isn't notarized by Apple.
+   Notarizing needs a paid Apple developer membership. Click **Done**.
+4. Open **System Settings → Privacy & Security**, scroll down to **Security**, click
+   **Open Anyway** next to the message about MountMate, and confirm.
+
+To update, download the new version and replace the app in Applications. Steps 3 and
+4 come back once for each new version. The first time a new version reads a saved
+share password, macOS asks for your login password: click **Always Allow**.
+
+### Build with one command
+
+In Terminal:
 
 ```bash
-git clone https://github.com/ee02217/MountMate.git
-cd MountMate
-./Scripts/install.sh
-open /Applications/MountMate.app
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/ee02217/MountMate/main/Scripts/bootstrap.sh)"
 ```
 
-`install.sh` builds a release copy, signs it and installs it in `/Applications`. It
-uses your Apple Development identity if you have one. Otherwise it falls back to a
-self-signed identity, which you create once:
+It builds the latest release on your Mac, installs it in `/Applications` and opens
+it. If the command line tools are missing, it opens their installer; run the command
+again once they have installed. Run it again any time to update.
 
-```bash
-./Scripts/create-identity.sh
-```
+An app built on your own Mac opens without a warning. If you have Xcode, sign in to
+it with an Apple ID first (Xcode → Settings → Accounts). It's free, and it gives
+your builds an *Apple Development* signing identity, so macOS never asks for your
+login password after an update either. Without one, the script creates a
+self-signed identity instead, and macOS asks once after each update.
+[Why](docs/how-it-works.md#passwords-and-the-keychain).
 
-Then open **Settings → General** and turn on **Launch MountMate at login**. Running
-`install.sh` again later upgrades in place, and the login item keeps working.
+### Then
 
-> **Sharing with friends:** send them this repository rather than your built copy. A
-> development-signed app copied from another Mac is blocked by Gatekeeper; built on
-> their own Mac, it runs normally.
+Open **Settings → General** and turn on **Launch MountMate at login**. Updates keep
+the login item working.
 
 ## Using MountMate
 
@@ -145,9 +163,10 @@ mount. Eject the disk, or remove the folder:
 sudo rmdir /Volumes/<share name>
 ```
 
-**macOS keeps asking for your login password.** Your build isn't signed with a
-developer team. Sign in to Xcode with an Apple ID and run `install.sh` again. Click
-**Always Allow** on the next prompt, and it should be the last.
+**macOS asks for your login password after an update.** That's expected for the
+download, and for builds not signed with a developer team. Click **Always Allow** and
+it won't ask again until the next update. To stop it altogether, sign in to Xcode
+with an Apple ID and install with the one-line command.
 
 **A mount is stuck or times out.** If the server still accepts connections, MountMate
 restarts macOS's network-mount agent itself, at most once every five minutes, and
@@ -176,8 +195,16 @@ MountMate keeps a copy rather than overwriting it, and says so in Diagnostics.
 swift build                    # build
 swift test                     # run the tests
 ./Scripts/dev-bundle.sh        # a runnable debug copy in .build/MountMate.app
+./Scripts/install.sh --open    # build, sign and install in /Applications, then open
 swift Scripts/make-icon.swift  # redraw the app icon
 ```
+
+`install.sh` signs with your Apple Development identity if you have one. Otherwise
+create a self-signed identity once with `./Scripts/create-identity.sh`.
+
+To publish a release, run `./Scripts/release.sh 1.2.0` from an up-to-date `main`.
+It tags the version and attaches a signed, universal `MountMate.zip` to a GitHub
+release; `--dry-run` builds the zip without publishing anything.
 
 The app is a thin SwiftUI layer over `MountMateCore`, which holds the mounting,
 retry and recovery logic, and is where the tests are. See

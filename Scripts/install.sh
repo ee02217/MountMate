@@ -67,52 +67,9 @@ MESSAGE
     exit 1
 fi
 
-# --- 2. build ------------------------------------------------------------------
-swift build -c release --product MountMate
-BINARY="$(swift build -c release --show-bin-path)/MountMate"
-
-# The .icns is a build product and is gitignored, so a fresh clone has none.
-# Regenerate when it is missing or older than the code that draws it.
-ICON="$ROOT/Resources/MountMate.icns"
-if [ ! -f "$ICON" ] || [ "$ROOT/Scripts/make-icon.swift" -nt "$ICON" ]; then
-    swift "$ROOT/Scripts/make-icon.swift"
-fi
-
-VERSION="$(git -C "$ROOT" describe --tags --always --dirty 2>/dev/null || echo 0.1)"
-
-# --- 3. assemble ---------------------------------------------------------------
-rm -rf "$STAGING"
-mkdir -p "$STAGING/Contents/MacOS" "$STAGING/Contents/Resources"
-
-cat >"$STAGING/Contents/Info.plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleExecutable</key><string>MountMate</string>
-    <key>CFBundleIdentifier</key><string>com.sergio.mountmate</string>
-    <key>CFBundleName</key><string>MountMate</string>
-    <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>${VERSION}</string>
-    <key>CFBundleIconFile</key><string>MountMate</string>
-    <key>LSMinimumSystemVersion</key><string>26.0</string>
-    <key>LSUIElement</key><true/>
-</dict>
-</plist>
-PLIST
-
-cp "$BINARY" "$STAGING/Contents/MacOS/MountMate"
-# Before codesign: adding a file to a signed bundle invalidates the signature.
-cp "$ICON" "$STAGING/Contents/Resources/MountMate.icns"
-
-# --- 4. sign -------------------------------------------------------------------
-codesign --force --options runtime --timestamp=none \
-    --sign "$IDENTITY_HASH" "$STAGING"
-
-# Verify before installing. An unsigned or badly signed bundle would fail later
-# inside SMAppService with an error that says nothing useful, and this script exists
-# precisely to make launch-at-login work.
-codesign --verify --strict --verbose=2 "$STAGING"
+# --- 2. build, assemble and sign ---------------------------------------------
+"$ROOT/Scripts/build-app.sh" "$IDENTITY_HASH" "$STAGING"
+VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$STAGING/Contents/Info.plist")"
 
 TEAM="$(codesign -dvvv "$STAGING" 2>&1 | awk -F= '/^TeamIdentifier=/ {print $2}')"
 if [ -z "$TEAM" ] || [ "$TEAM" = "not set" ]; then
@@ -124,7 +81,7 @@ Xcode with an Apple ID and re-run this script to stop the prompts.
 WARNING
 fi
 
-# --- 5. install ----------------------------------------------------------------
+# --- 3. install ----------------------------------------------------------------
 if pgrep -x MountMate >/dev/null; then
     echo "Quitting the running MountMate..."
     pkill -x MountMate || true

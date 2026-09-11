@@ -1,24 +1,34 @@
 import Foundation
 
-/// How tightly the stored password is bound to this application.
+/// Who can read a stored password without macOS asking first.
 ///
-/// In practice `.permissive` is the only reachable value (spec §6.1). Restricting a
-/// Keychain item to one application requires `SecAccessCreate` and
-/// `SecTrustedApplicationCreateFromPath` — deprecated since 10.10 — or
-/// `kSecAttrAccessGroup`, which needs a paid Apple team identifier. The self-signed
-/// identity milestone 7a introduces gives a stable designated requirement, which is
-/// what `SMAppService` needs for launch-at-login, but it does not unlock an
-/// app-restricted ACL.
+/// Neither case is "any process". macOS partitions every Keychain item by the code
+/// that created it, and a process outside the partition gets a prompt rather than the
+/// password. What varies is how stable the partition is (spec §6):
 ///
-/// `.appRestricted` stays defined because the distinction is real and the Diagnostics
-/// pane reports which is in force; it becomes reachable if this app ever ships with a
-/// team identifier.
+/// - Signed with a developer team, the partition is the team, so every build MountMate
+///   ships from that team reads the item silently.
+/// - Without a team — ad-hoc, self-signed or unsigned — the partition is this binary's
+///   cdhash, which changes on every rebuild. Each update is a stranger and prompts.
+///
+/// Both were established by experiment on 2026-09-11, not assumed: two binaries with
+/// different cdhashes prompted, and the same pair signed with one team did not.
 public enum CredentialAccessPolicy: Sendable, Equatable {
-    /// Readable by any process running as this user — the same trust boundary as a
-    /// mode-600 file. Must be surfaced to the user, never left silent.
-    case permissive
-    /// Readable only by this application. Requires a stable signing identity.
+    /// Signed with a team: only MountMate reads the password without a prompt, and
+    /// updates from the same team keep reading it.
     case appRestricted
+    /// No team: the password is bound to this exact build, so every update asks for
+    /// the login password. Must be surfaced — on an unattended Mac, a prompt nobody
+    /// answers blocks every mount.
+    case buildBound
+
+    public init(teamIdentifier: String?) {
+        if let teamIdentifier, !teamIdentifier.isEmpty {
+            self = .appRestricted
+        } else {
+            self = .buildBound
+        }
+    }
 }
 
 public enum CredentialStoreError: Error, Equatable {

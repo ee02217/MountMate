@@ -15,9 +15,9 @@ import Foundation
     #expect(await store.password(for: endpoint) == nil)
 }
 
-@Test func theFakeReportsAPolicyLikeTheRealStore() async {
+@Test func theFakeReportsTheConservativePolicy() async {
     let store = InMemoryCredentialStore()
-    #expect(await store.accessPolicy == .permissive)
+    #expect(await store.accessPolicy == .buildBound)
 }
 
 @Test func theQueryIsAGenericPasswordUnderMountMatesOwnService() throws {
@@ -98,9 +98,13 @@ func removingAnAbsentPasswordIsNotAnError() async throws {
     try await store.removePassword(for: endpoint)
 }
 
-@Test func theKeychainStoreReportsThePermissivePolicy() async {
-    // No Keychain access needed: the policy is a compile-time decision until
-    // milestone 7 provides a stable signing identity.
-    let store = KeychainCredentialStore()
-    #expect(await store.accessPolicy == .permissive)
+/// No Keychain access needed: the policy follows from how the running app is
+/// signed, which is injected here rather than read from the test runner's own
+/// signature.
+@Test func theKeychainStoreReportsThePolicyItsSigningTeamImplies() async {
+    let teamSigned = KeychainCredentialStore(teamIdentifier: { "GLS94R3UX4" })
+    #expect(await teamSigned.accessPolicy == .appRestricted)
+
+    let selfSigned = KeychainCredentialStore(teamIdentifier: { nil })
+    #expect(await selfSigned.accessPolicy == .buildBound)
 }

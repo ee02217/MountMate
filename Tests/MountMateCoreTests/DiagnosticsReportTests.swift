@@ -2,31 +2,42 @@ import Testing
 import Foundation
 @testable import MountMateCore
 
-@Test func theReportNamesThePermissivePolicy() throws {
+@Test func theReportWarnsWhenCredentialsAreBoundToOneBuild() throws {
     let report = DiagnosticsReport(
         appVersion: "0.1-dev",
         systemVersion: "26.5.2",
-        accessPolicy: .permissive,
+        accessPolicy: .buildBound,
         load: EndpointLoad(endpoints: [try makeStoreEndpoint()]),
         entries: []
     )
     let text = report.text()
 
-    // Spec §6: the fallback must be visible, never silent.
-    #expect(text.contains("permissive"))
+    // Spec §6: the weaker case must be visible, never silent.
+    #expect(text.contains("bound to this build"))
     #expect(text.contains("0.1-dev"))
     #expect(text.contains("26.5.2"))
 
-    // Spec §6.1: it must not claim a signed install will change this. It will not —
-    // restricting a Keychain item to one app needs a paid team ID.
-    #expect(!text.lowercased().contains("will restrict"))
+    // The claim this report used to make was false: another process asking for the
+    // item gets a prompt, it does not read it. The report must not repeat it.
+    #expect(!text.contains("any process"))
+}
+
+@Test func theReportNamesATeamRestrictedPolicy() throws {
+    let report = DiagnosticsReport(
+        appVersion: "0.1",
+        systemVersion: "26.6.2",
+        accessPolicy: .appRestricted,
+        load: EndpointLoad(endpoints: [try makeStoreEndpoint()]),
+        entries: []
+    )
+    #expect(report.text().contains("restricted to MountMate"))
 }
 
 @Test func theReportListsSharesWithoutAnySecret() throws {
     let report = DiagnosticsReport(
         appVersion: "0.1-dev",
         systemVersion: "26.5.2",
-        accessPolicy: .permissive,
+        accessPolicy: .buildBound,
         load: EndpointLoad(endpoints: [try makeStoreEndpoint(name: "Multimedia")]),
         entries: []
     )
@@ -43,7 +54,7 @@ import Foundation
     let report = DiagnosticsReport(
         appVersion: "0.1-dev",
         systemVersion: "26.5.2",
-        accessPolicy: .permissive,
+        accessPolicy: .buildBound,
         load: EndpointLoad(
             endpoints: [],
             skipped: [SkippedEndpoint(index: 1, reason: "unsupported scheme \"nfs\"")],
@@ -62,7 +73,7 @@ import Foundation
     let report = DiagnosticsReport(
         appVersion: "0.1-dev",
         systemVersion: "26.5.2",
-        accessPolicy: .permissive,
+        accessPolicy: .buildBound,
         load: EndpointLoad(endpoints: []),
         entries: [
             ActivityEntry(

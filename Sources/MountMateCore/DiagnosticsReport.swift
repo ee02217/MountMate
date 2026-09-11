@@ -31,12 +31,12 @@ public struct DiagnosticsReport: Sendable {
         lines.append("MountMate \(appVersion) / macOS \(systemVersion)")
 
         switch accessPolicy {
-        case .permissive:
-            lines.append(
-                "Keychain access: permissive — readable by any process running as you"
-            )
         case .appRestricted:
-            lines.append("Keychain access: app-restricted")
+            lines.append("Keychain access: restricted to MountMate (team-signed)")
+        case .buildBound:
+            lines.append(
+                "Keychain access: bound to this build — macOS prompts for Keychain access after every update"
+            )
         }
 
         lines.append("")

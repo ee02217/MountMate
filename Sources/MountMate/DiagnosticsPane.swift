@@ -16,17 +16,17 @@ struct DiagnosticsPane: View {
 
     @State private var entries: [ActivityEntry] = []
     @State private var load: EndpointLoad = .empty
-    @State private var policy: CredentialAccessPolicy = .permissive
+    @State private var policy: CredentialAccessPolicy?
     @State private var copied = false
     @State private var resetCopied: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if policy == .permissive {
-                // Spec §6 requires this to be visible, never silent — and §6.1
-                // requires it not to promise a fix that does not exist.
+            if policy == .buildBound {
+                // Spec §6: the weaker case must be visible, never silent — and it has
+                // to say what the user can do about it.
                 Label {
-                    Text("Passwords are readable by any process running as you — the same as a file in your home folder. macOS cannot restrict this further without a paid Apple developer account.")
+                    Text("This copy of MountMate isn't signed with a developer team, so macOS asks for your login password after every update — and until someone answers, shares can't mount. Installing it with an Apple Development identity stops the prompts.")
                         .fixedSize(horizontal: false, vertical: true)
                 } icon: {
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -34,8 +34,8 @@ struct DiagnosticsPane: View {
                 }
                 .font(.callout)
                 .padding(12)
-                // Held to a readable measure. At full width this ran to about 110
-                // characters a line, and it is the most important text in the app.
+                // Held to a readable measure; at full width it runs past 100
+                // characters a line.
                 .frame(maxWidth: 520, alignment: .leading)
                 .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
             }
@@ -91,7 +91,7 @@ struct DiagnosticsPane: View {
         let report = DiagnosticsReport(
             appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev",
             systemVersion: ProcessInfo.processInfo.operatingSystemVersionString,
-            accessPolicy: policy,
+            accessPolicy: policy ?? .buildBound,
             load: load,
             entries: entries
         )

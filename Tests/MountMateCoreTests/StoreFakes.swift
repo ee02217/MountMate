@@ -97,7 +97,7 @@ actor InMemoryActivityLog: ActivityLog {
 actor InMemoryCredentialStore: CredentialStore {
     private var passwords: [String: String] = [:]
 
-    var accessPolicy: CredentialAccessPolicy { .permissive }
+    var accessPolicy: CredentialAccessPolicy { .buildBound }
 
     private func key(for endpoint: ShareEndpoint) -> String {
         let scheme = endpoint.url.scheme?.lowercased() ?? ""

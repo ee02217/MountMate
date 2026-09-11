@@ -39,13 +39,20 @@ enum KeychainQuery {
 /// The password reaches `NetFSMountURLSync` as its `passwd` parameter and is never
 /// embedded in a URL, so it never appears in a process listing (spec §5.6).
 public struct KeychainCredentialStore: CredentialStore {
-    public init() {}
+    private let teamIdentifier: @Sendable () -> String?
 
-    /// Always `.permissive`: see `CredentialAccessPolicy` and spec §6.1 for why an
-    /// app-restricted ACL is not reachable without a paid team identifier. Reported
-    /// rather than hidden, because §6 requires the boundary to be visible.
+    /// `teamIdentifier` defaults to the running app's own signature; tests inject it,
+    /// because the test runner's signature says nothing about MountMate's.
+    public init(
+        teamIdentifier: @escaping @Sendable () -> String? = CodeSignature.currentTeamIdentifier
+    ) {
+        self.teamIdentifier = teamIdentifier
+    }
+
+    /// Follows from how this app is signed, not from anything set on the item: the
+    /// default partition macOS assigns is what decides who reads without a prompt.
     public var accessPolicy: CredentialAccessPolicy {
-        get async { .permissive }
+        get async { CredentialAccessPolicy(teamIdentifier: teamIdentifier()) }
     }
 
     public func password(for endpoint: ShareEndpoint) async -> String? {
